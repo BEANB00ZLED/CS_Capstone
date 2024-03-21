@@ -7,20 +7,26 @@ from mapbox_token import TOKEN
 import plotly.graph_objects as go
 import ast
 
+FILE = 'waze_jams_I95_NY_total.csv'
+
 # Initialize the app
 app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 def first_value_loc(list_of_lists: list, index: int):
-    return list_of_lists[0][index]
+    if len(list_of_lists) > 0:
+        while isinstance(list_of_lists[0], list):
+            list_of_lists = list_of_lists[0]
+        return list_of_lists[index]
+    else:
+        return None
 
 
 def create_alerts_map():
-    df = pd.read_csv('waze_jams_I95_total.csv')
+    df = pd.read_csv(FILE)
     #Convert the data from strings to lists of floats
     df['geometry.coordinates'] = df['geometry.coordinates'].apply(ast.literal_eval)
     df['x.coordinates'] = df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1))
     df['y.coordinates'] = df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 0))
-    print(df['x.coordinates'])
     # Map/data settings
     trace = go.Scattermapbox(
         lat=df['x.coordinates'],

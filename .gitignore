@@ -162,3 +162,4 @@ cython_debug/
 *.csv
 mapbox_token.py
 /waze_jams
+/waze_alerts
