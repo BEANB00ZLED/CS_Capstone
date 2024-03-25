@@ -7,7 +7,7 @@ from mapbox_token import TOKEN
 import plotly.graph_objects as go
 import ast
 
-FILE = 'waze_jams_I95_NY_total.csv'
+FILE = 'waze_jams_I95.csv'
 
 # Initialize the app
 app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])

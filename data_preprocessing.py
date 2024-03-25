@@ -2,6 +2,7 @@ import pandas as pd
 import json
 import os, sys
 from data_visualization import first_value_loc
+import datetime as dt
 import ast
  
 ALERTS_COLUMNS = ['properties.city', 'properties.confidence',
@@ -112,17 +113,54 @@ def see_all_jams():
             print(i + ': ' + str(counts[i]))
 
 def filter_I95():
-    '''Filters out all the points in the I95 data that isnt in NYS'''
+    '''
+    Filters out all the points in the I95 data that isnt in NYS
+    '''
     df = pd.read_csv('waze_jams_I95_total.csv')
     # The columns in the df had weird leading space for whatever reason
     df.rename(columns=lambda x: x.strip(), inplace=True)
     # Filter out all datapoints that arent in new york
     df['properties.city'] = df['properties.city'].apply(lambda x: x.strip())
     df = df[df['properties.city'].str[-2:] == 'NY']
-    df.to_csv('waze_jams_I95_NY_total.csv')
+    df.to_csv('waze_jams_I95.csv')
+
+def validate_data():
+    '''
+    Match up the I95 jams data to the I95 crash data
+    '''
+    # Open up both csv files
+    df_jams = pd.read_csv('waze_jams_I95_slice.csv')
+    # Clean up weird trailing spaces, idk why they keep popping up
+    df_jams.columns = df_jams.columns.str.strip()
+    df_crashes = pd.read_csv('I95_crashes.csv', header=1)
+
+    # Convert both time/date rows into datetime objects
+    df_jams['key_date'] = pd.to_datetime(df_jams['properties.utc_timestamp'], format='ISO8601')
+    df_jams['key_date'] = df_jams['key_date'].dt.date
+    df_crashes['key_date'] = pd.to_datetime(df_crashes['Crash Date'], format='ISO8601').dt.date
+
+    # Use cartesian product to match each jams with a crash that happened that day
+    df_merged = pd.merge(df_jams, df_crashes, on='key_date', suffixes=('_jams', '_crashes'))
+    #df_merged.to_csv('TEST.csv')
+
+    # Group by each identical jam
+    # Each grouping of jam will have the same time but different crash data times
+    # Within each group only select the crash data that has the smallest time delta between the jams and crash
+    df_merged['properties.utc_timestamp'] = pd.to_datetime(df_merged['properties.utc_timestamp'], format='ISO8601')
+    df_merged['Crash Time'] = pd.to_datetime(df_merged['Crash Time'], format='%I:%M %p')
+    df_merged = df_merged.groupby(by='properties.uuid').apply(
+        lambda group: group.loc[
+            ((group['properties.utc_timestamp'].dt.hour - group['Crash Time'].dt.hour).multiply(60) + 
+             (group['properties.utc_timestamp'].dt.minute - group['Crash Time'].dt.minute)
+            ).abs().idxmin()
+        ]
+    )
+
+    df_merged.to_csv('TEST2.csv')
+    
+
 
 def main():
-    pass
-
+    validate_data()
 if __name__ == '__main__':
     main()
