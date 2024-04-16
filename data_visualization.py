@@ -6,19 +6,14 @@ import pandas as pd
 from mapbox_token import TOKEN
 import plotly.graph_objects as go
 import ast
+from util import first_value_loc
 
 FILE = 'waze_jams_I95.csv'
 
 # Initialize the app
 app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
-def first_value_loc(list_of_lists: list, index: int):
-    if len(list_of_lists) > 0:
-        while isinstance(list_of_lists[0], list):
-            list_of_lists = list_of_lists[0]
-        return list_of_lists[index]
-    else:
-        return None
+
 
 
 def create_alerts_map():
