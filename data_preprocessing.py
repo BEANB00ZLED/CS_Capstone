@@ -23,10 +23,14 @@ JAMS_COLUMNS = ['properties.city',
        'properties.uuid', 'properties.utc_timestamp', 'properties.day_of_week',
        'properties.weekday_weekend', 'geometry.coordinates']
 
+INTERSTATE_NUMS = [95, 90, 86, 88, 81, 87, 390]
+
+
 class primary_filter(Enum):
     LOCATION = 'location_based'
     DATETIME = 'datetime_based'
     PERFECTFIT = 'perfect_fit'
+    THRESH = 'basic_thresh'
 
 
 def combine_all_jams(interstate_num: int):
@@ -70,6 +74,38 @@ def combine_all_jams(interstate_num: int):
     # Write the DataFrame to a CSV file
     df.to_csv(f'waze_jams_I{str(interstate_num)}.csv')
 
+def combine_all_jams_interstate():
+     # Initialize an empty DataFrame
+    df = pd.DataFrame()
+    # Loop over the subdirectories in 'waze_jams'
+    for i in os.listdir('waze_jams'):
+        # Loop over the files in each subdirectory
+        for j in os.listdir('waze_jams/' + i):
+            print('waze_jams/' + i + '/' + j)
+            # Open the JSON file
+            with open('waze_jams/' + i + '/' + j) as json_file:
+                # Load the JSON data
+                data = json.load(json_file)
+                # Normalize the JSON data
+                data = pd.json_normalize(data['features'])
+                # Filter data to include only 'I-95 N' or 'I-95 S' street names
+                #data = data.loc[data['properties.street'].isin(street_names)]
+                #data = data[data['properties.street'].apply(lambda x: any(x == street for street in street_names))]
+                data = data.loc[(data['properties.street'].str.startswith('I-')) & (data['properties.street'].str[2:-2].str.isdigit())]
+                # Concatenate the current data to the DataFrame
+                df = pd.concat([df, data], ignore_index=True)
+    # The columns in the df had weird leading space for whatever reason
+    df.rename(columns=lambda x: x.strip(), inplace=True)
+    # Filter out all datapoints that arent in new york
+    df['properties.city'] = df['properties.city'].apply(lambda x: x.strip() if isinstance(x, str) else x)
+    df = df[df['properties.city'].str[-2:] == 'NY']
+    # Write the DataFrame to a CSV file
+    df.to_csv(f'waze_jams_interstates.csv')
+
+def generate_all_jams():
+    for i in INTERSTATE_NUMS:
+
+        combine_all_jams(i)
 def combine_all_alerts():
     """
     This function combines all JSON data from the 'waze_jams' directory
@@ -146,9 +182,31 @@ def filter_I95():
     df = df[df['properties.city'].str[-2:] == 'NY']
     df.to_csv('waze_jams_I95.csv')
 
-def validate_data(jams_file: str, crashes_file: str, filter: primary_filter) -> None:
+def clean_crash(crash_file: str, *on_street: str):
+    df = pd.read_csv(crash_file)
+    # The columns in the df had weird leading space for whatever reason
+    df.rename(columns=lambda x: x.strip(), inplace=True)
+    # Filter out all datapoints not on the desired interstate
+    df = df[df['OnStreet'].isin(on_street)]
+    df.to_csv(crash_file)
+
+def combine_all_crashes(crash_file_dir: str):
     '''
-    Match up the I95 jams data to the I95 crash data
+    -Designed to combine all the csv crash files for the different counties into 1 file
+    '''
+    df = None
+    for i in os.listdir(crash_file_dir):
+        temp = pd.read_csv(f"{crash_file_dir}/{i}")
+        df = pd.concat([df, temp], ignore_index=True)
+        df.drop_duplicates(inplace=True)
+    print(len(df))
+    df.to_csv('interstate_crashes.csv')
+
+def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, test: bool = False) -> None:
+    '''
+    - Input a jam file and a crash file that has been fed throught the website because it changes some of the column names
+    - it tries to match the jams and crashes it can within the thresholds
+    - thresholds are set within the function, we are going with 1/2hr and 2mi
     '''
     jams_date_time_col = 'properties.utc_timestamp'
     crashes_street_col = 'OnStreet'
@@ -156,10 +214,10 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter) -> 
     crashes_time_col = 'CrashTimeF'
 
     # Difference in time threshold
-    time_threshold = 2 # [hours]
+    time_threshold = .5 # [hours]
 
     # Distance threshold
-    dist_threshold = 50 # [miles]
+    dist_threshold = 2 # [miles]
     lat_to_miles = 69
     lon_to_miles = 54.6
 
@@ -169,15 +227,25 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter) -> 
     # Clean up weird trailing spaces, idk why they keep popping up
     df_jams.columns = df_jams.columns.str.strip()
     df_crashes = pd.read_csv(crashes_file)
-    df_crashes = df_crashes[(df_crashes[crashes_street_col] == 'I 95') | (df_crashes[crashes_street_col] == 'Interstate 95')]
+    #df_crashes = df_crashes[(df_crashes[crashes_street_col] == 'I 95') | (df_crashes[crashes_street_col] == 'Interstate 95')]
 
     # Convert both time/date rows into datetime objects
-    df_jams['key_date'] = pd.to_datetime(df_jams[jams_date_time_col], format='ISO8601')
-    df_jams['key_date'] = df_jams['key_date'].dt.date
-    df_crashes['key_date'] = pd.to_datetime(df_crashes[crashes_date_col], format='ISO8601').dt.date
+    df_jams['key_date_jams'] = pd.to_datetime(df_jams[jams_date_time_col], format='ISO8601')
+    df_jams['key_date_jams'] = df_jams['key_date_jams'].dt.date
+    df_crashes['key_date_crashes'] = pd.to_datetime(df_crashes[crashes_date_col], format='ISO8601').dt.date
 
     # Use cartesian product to match each jams with a crash that happened that day
-    df_merged = pd.merge(df_jams, df_crashes, on='key_date', suffixes=('_jams', '_crashes'))
+    df_merged = None
+    for key_date in df_jams['key_date_jams'].unique():
+        print(f'key_date: {key_date}')
+        jams_group = df_jams[df_jams['key_date_jams'] == key_date]
+        #print(f'Jams group: {len(jams_group)}')
+        crashes_group = df_crashes[df_crashes['key_date_crashes'] == key_date]
+        #print(f'Crashes group: {len(crashes_group)}')
+        cartesian_product = pd.merge(jams_group, crashes_group, how='cross')
+        #print(f'Cartesian product: {len(cartesian_product)}')
+        df_merged = pd.concat([df_merged, cartesian_product], ignore_index=True)
+
 
     #Ouput for testing
     print(f'{len(df_jams)} unique jams with {len(df_crashes)} crashes totalling {len(df_merged)} possiblities')
@@ -188,7 +256,8 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter) -> 
         # Within each group only select the crash data that has the smallest time delta between the jams and crash
         df_merged[jams_date_time_col] = pd.to_datetime(df_merged[jams_date_time_col], format='ISO8601')
         df_merged[crashes_time_col] = pd.to_datetime(df_merged[crashes_time_col], format='%I:%M %p')
-        df_merged = df_merged[abs(df_merged[jams_date_time_col].dt.hour - df_merged[crashes_time_col].dt.hour) <= time_threshold]
+        #df_merged['time_delta']
+        df_merged = df_merged[(df_merged[jams_date_time_col].dt.hour - df_merged[crashes_time_col].dt.hour) <= time_threshold]
         df_merged = df_merged.groupby(by='properties.uuid', as_index=False).apply(
             lambda group: group.loc[
                 ((group[jams_date_time_col].dt.hour - group[crashes_time_col].dt.hour).multiply(60) + 
@@ -216,16 +285,31 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter) -> 
             ]
         )
     elif filter == primary_filter.PERFECTFIT:
-        # Group by each identical jam
-        # Each grouping of jam will have the same time but different crash data times
-        # Within each group only select the crash data that has the smallest time delta between the jams and crash
+        #Time threshold
         df_merged[jams_date_time_col] = pd.to_datetime(df_merged[jams_date_time_col], format='ISO8601')
         df_merged[crashes_time_col] = pd.to_datetime(df_merged[crashes_time_col], format='%I:%M %p')
-        df_merged = df_merged[abs(df_merged[jams_date_time_col].dt.hour - df_merged[crashes_time_col].dt.hour) <= time_threshold]
+        df_merged = df_merged[
+            abs(
+                ((df_merged[jams_date_time_col].dt.hour * 60) + (df_merged[jams_date_time_col].dt.minute)) - 
+                ((df_merged[crashes_time_col].dt.hour * 60) + (df_merged[crashes_time_col].dt.minute))
+            ) <= (time_threshold * 60)]
+        print(f'after time thresholding: {len(df_merged)}')
+        #Distance threshold
+        df_merged['geometry.coordinates'] = df_merged['geometry.coordinates'].apply(ast.literal_eval)
+        df_merged['jams_x'] = df_merged['geometry.coordinates'].apply(lambda x: first_value_loc(x, 0))
+        df_merged['jams_y'] = df_merged['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1))
+        df_merged = df_merged[(
+            ((((df_merged['jams_x'] * lon_to_miles) - (df_merged['X'] * lon_to_miles))**2
+                ) + 
+            (((df_merged['jams_y'] * lat_to_miles) - (df_merged['Y'] * lat_to_miles))**2
+                ))**.5) <= dist_threshold]
+        print(f'after distance thresholding: {len(df_merged)}')
+        # Group by each identical jam
+        # Each grouping of jam will have the same time but different crash data times
+        # Within each group only select the crash data that has the smallest time delta between the jams and crash       
         df_merged_time = df_merged.groupby(by='properties.uuid', as_index=False).apply(
             lambda group: group.loc[
-                ((group[jams_date_time_col].dt.hour - group[crashes_time_col].dt.hour).multiply(60) + 
-                (group[jams_date_time_col].dt.minute - group[crashes_time_col].dt.minute)
+                ((group[jams_date_time_col] - group[crashes_time_col])
                 ).abs().idxmin()
             ]
         )
@@ -233,14 +317,6 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter) -> 
         # Each grouping of jam will have the same location but different crash locations
         # Within each group only select the crash data that has the smallest distance to the first jam coord
         # Change coordinate data to float since pandas reads them as strings by default
-        df_merged['geometry.coordinates'] = df_merged['geometry.coordinates'].apply(ast.literal_eval)
-        df_merged['jams_x'] = df_merged['geometry.coordinates'].apply(lambda x: first_value_loc(x, 0))
-        df_merged['jams_y'] = df_merged['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1))
-        df_merged = df_merged[(
-            (((df_merged['jams_x'] * lon_to_miles) - (df_merged['X'] * lon_to_miles))**2
-                ) + 
-            (((df_merged['jams_y'] * lat_to_miles) - (df_merged['Y'] * lat_to_miles))**2
-                )**.5) <= dist_threshold]
         df_merged_loc = df_merged.groupby(by='properties.uuid', as_index=False).apply(
             lambda group: group.loc[
                 (((group['jams_x'] - group['X'])**2) + ((group['jams_y'] - group['Y'])**2)**.5
@@ -249,16 +325,43 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter) -> 
         )
         df_merged = pd.merge(df_merged_time, df_merged_loc, how='inner', on=['properties.uuid', 'CaseNumber'], suffixes=('', 'XXX'))
         df_merged.drop(columns=[col for col in df_merged.columns if col.endswith('XXX')], inplace=True)
+    elif filter == primary_filter.THRESH:
+        #Time threshold
+        df_merged[jams_date_time_col] = pd.to_datetime(df_merged[jams_date_time_col], format='ISO8601')
+        df_merged[crashes_time_col] = pd.to_datetime(df_merged[crashes_time_col], format='%I:%M %p')
+        df_merged = df_merged[
+            abs(
+                ((df_merged[jams_date_time_col].dt.hour * 60) + (df_merged[jams_date_time_col].dt.minute)) - 
+                ((df_merged[crashes_time_col].dt.hour * 60) + (df_merged[crashes_time_col].dt.minute))
+            ) <= (time_threshold * 60)]
+        print(f'after time thresholding: {len(df_merged)}')
+        #Distance threshold
+        df_merged['geometry.coordinates'] = df_merged['geometry.coordinates'].apply(ast.literal_eval)
+        df_merged['jams_x'] = df_merged['geometry.coordinates'].apply(lambda x: first_value_loc(x, 0))
+        df_merged['jams_y'] = df_merged['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1))
+        df_merged = df_merged[(
+            ((((df_merged['jams_x'] * lon_to_miles) - (df_merged['X'] * lon_to_miles))**2
+                ) + 
+            (((df_merged['jams_y'] * lat_to_miles) - (df_merged['Y'] * lat_to_miles))**2
+                ))**.5) <= dist_threshold]
+        print(f'after distance thresholding: {len(df_merged)}')
+
     else:
         print('Unrecognized filter')
         return
 
     df_merged.drop(columns=[col for col in df_merged.columns if 'Unnamed' in col], inplace=True)
+    columns_to_check = [col for col in df_merged.columns if not isinstance(df_merged[col].iloc[0], (list, dict, tuple))]
+    df_merged.drop_duplicates(subset=columns_to_check, inplace=True)
     df_merged.reset_index(drop=True, inplace=True)
-    df_merged.to_csv(f'TEST_{filter.value}.csv')
+    if not test:
+        df_merged.to_csv(f'{filter.value}_validated_interstates.csv')
+    else:
+        df_merged.to_csv('TEST.csv')
 
 
 def main():
-    validate_data('waze_jams_I95_slice.csv', 'I95_crashes.csv', primary_filter.PERFECTFIT)
+    #combine_all_crashes('NYS_Crash_CSVs')
+    validate_data('waze_jams_interstates.csv', 'interstate_crashes.csv', primary_filter.THRESH)
 if __name__ == '__main__':
     main()

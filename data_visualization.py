@@ -22,16 +22,33 @@ def create_alerts_map():
     df['geometry.coordinates'] = df['geometry.coordinates'].apply(ast.literal_eval)
     df['x.coordinates'] = df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1))
     df['y.coordinates'] = df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 0))
+
+    df2 = pd.read_csv('I95_crashes.csv')
+    df2['X'] = df2['X'].astype('float32')
+    df2['Y'] = df2['Y'].astype('float32')
+
     # Map/data settings
-    trace = go.Scattermapbox(
+    jams_trace = go.Scattermapbox(
         lat=df['x.coordinates'],
         lon=df['y.coordinates'],
+        mode='markers',
+        marker=dict(
+            color='rgb(255,255,0)',
+            opacity=1,
+        ),
+    )
+
+    crashes_trace = go.Scattermapbox(
+        lat=df2['Y'],
+        lon=df2['X'],
         mode='markers',
         marker=dict(
             color='rgb(255,0,0)',
             opacity=1,
         ),
     )
+
+
 
     # Layout settings
     layout = go.Layout(
@@ -45,7 +62,7 @@ def create_alerts_map():
         autosize=True,
     )
 
-    fig = go.Figure(data=[trace], layout=layout)
+    fig = go.Figure(data=[jams_trace, crashes_trace], layout=layout)
     
     return fig
 
@@ -60,9 +77,12 @@ main_panel = html.Div(
                 children=[
                     dcc.Graph(
                         id='jams_graph',
-                        figure=create_alerts_map()
+                        figure=create_alerts_map(),
+                        style={
+                            'height': '60rem'
+                        }
                     )
-                ]
+                ],
             )
         ]
     ),
