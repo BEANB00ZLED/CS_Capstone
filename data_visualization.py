@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import ast
 from util import first_value_loc
 
-FILE = 'waze_jams_I95.csv'
+FILE = 'basic_thresh_validated_interstates.csv'
 
 # Initialize the app
 app = Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -23,9 +23,8 @@ def create_alerts_map():
     df['x.coordinates'] = df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1))
     df['y.coordinates'] = df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 0))
 
-    df2 = pd.read_csv('I95_crashes.csv')
-    df2['X'] = df2['X'].astype('float32')
-    df2['Y'] = df2['Y'].astype('float32')
+    df['X'] = df['X'].astype('float32')
+    df['Y'] = df['Y'].astype('float32')
 
     # Map/data settings
     jams_trace = go.Scattermapbox(
@@ -39,8 +38,8 @@ def create_alerts_map():
     )
 
     crashes_trace = go.Scattermapbox(
-        lat=df2['Y'],
-        lon=df2['X'],
+        lat=df['Y'],
+        lon=df['X'],
         mode='markers',
         marker=dict(
             color='rgb(255,0,0)',
