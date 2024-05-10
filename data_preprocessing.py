@@ -5,23 +5,6 @@ from util import first_value_loc
 import datetime as dt
 import ast
 from enum import Enum
- 
-ALERTS_COLUMNS = ['properties.city', 'properties.confidence',
-       'properties.country', 'properties.location.x', 'properties.location.y',
-       'properties.reliability', 'properties.reportDescription',
-       'properties.reportRating', 'properties.roadType', 'properties.street',
-       'properties.subtype', 'properties.type', 'properties.uuid',
-       'properties.utc_timestamp', 'properties.day_of_week',
-       'properties.weekday_weekend']
-
-JAMS_COLUMNS = ['properties.city',
-       'properties.country', 'properties.delay', 'properties.endNode',
-       'properties.id', 'properties.length', 'properties.level',
-       'properties.line', 'properties.roadType',
-       'properties.segments', 'properties.speed', 'properties.speedKMH',
-       'properties.street', 'properties.turnType', 'properties.type',
-       'properties.uuid', 'properties.utc_timestamp', 'properties.day_of_week',
-       'properties.weekday_weekend', 'geometry.coordinates']
 
 INTERSTATE_NUMS = [95, 90, 86, 88, 81, 87, 390]
 
@@ -75,7 +58,12 @@ def combine_all_jams(interstate_num: int):
     df.to_csv(f'waze_jams_I{str(interstate_num)}.csv')
 
 def combine_all_jams_interstate():
-     # Initialize an empty DataFrame
+    '''
+    - Function for looping through the 'waze_jams' directory which contains all the json file data
+    - Gets all the interstate data and outputs it to a CSV file
+    - RUN THIS IF BASE INTERSTATE JAM DATA IS GONE
+    '''
+    # Initialize an empty DataFrame
     df = pd.DataFrame()
     # Loop over the subdirectories in 'waze_jams'
     for i in os.listdir('waze_jams'):
@@ -88,9 +76,7 @@ def combine_all_jams_interstate():
                 data = json.load(json_file)
                 # Normalize the JSON data
                 data = pd.json_normalize(data['features'])
-                # Filter data to include only 'I-95 N' or 'I-95 S' street names
-                #data = data.loc[data['properties.street'].isin(street_names)]
-                #data = data[data['properties.street'].apply(lambda x: any(x == street for street in street_names))]
+                # Filter data to include only 'I-##' or 'INTERSTATE ##' street names
                 data = data.loc[(data['properties.street'].str.startswith('I-')) & (data['properties.street'].str[2:-2].str.isdigit())]
                 # Concatenate the current data to the DataFrame
                 df = pd.concat([df, data], ignore_index=True)
@@ -103,14 +89,18 @@ def combine_all_jams_interstate():
     df.to_csv(f'waze_jams_interstates.csv')
 
 def generate_all_jams():
+    '''
+    - This was for when I was going to just look at some of the major intersections and get the jams files for them
+    - DEPRECTATED, we are looking at all interstates
+    '''
     for i in INTERSTATE_NUMS:
-
         combine_all_jams(i)
+
 def combine_all_alerts():
     """
-    This function combines all JSON data from the 'waze_jams' directory
-    into a single DataFrame and writes it to a CSV file.
-    Only data with 'I-95 N' or 'I-95 S' street names is included.
+    - This function combines all JSON data from the 'waze_jams' directory into a single DataFrame and writes it to a CSV file.
+    - Only data with 'I-95 N' or 'I-95 S' street names is included.
+    - DEPRECATED, no longer using alerts data since connecting uuid field is not in dataset
     """
     # Initialize an empty DataFrame
     df = pd.DataFrame()
@@ -134,8 +124,10 @@ def combine_all_alerts():
 
 def see_all_jams():
     """
-    This function counts the occurrence of different street names in the 'waze_jams' directory.
-    The output is written to 'counts.txt'.
+    - This function counts the occurrence of different street names in the 'waze_jams' directory.
+    - The output is written to 'counts.txt'.
+    - No longer needed since this was for the very beginning when we thought we would have enough data from 1 interstate
+    - DEPRECATED
     """
     # Dictionary to store the counts of different street names
     counts = {}
@@ -172,7 +164,8 @@ def see_all_jams():
 
 def filter_I95():
     '''
-    Filters out all the points in the I95 data that isnt in NYS
+    - Filters out all the points in the I95 data that isnt in NYS (single use function for when we were looking at singel intersection)
+    - DEPRECATED
     '''
     df = pd.read_csv('waze_jams_I95_total.csv')
     # The columns in the df had weird leading space for whatever reason
@@ -183,6 +176,11 @@ def filter_I95():
     df.to_csv('waze_jams_I95.csv')
 
 def clean_crash(crash_file: str, *on_street: str):
+    '''
+    - Gets rid of some weird spaces that werte added to column names (prolly due to vscode extension)
+    - Filters out data that is not on the street names, (was designed for when we were looking at per interstate basis)
+    - DEPRECATED
+    '''
     df = pd.read_csv(crash_file)
     # The columns in the df had weird leading space for whatever reason
     df.rename(columns=lambda x: x.strip(), inplace=True)
@@ -192,7 +190,9 @@ def clean_crash(crash_file: str, *on_street: str):
 
 def combine_all_crashes(crash_file_dir: str):
     '''
-    -Designed to combine all the csv crash files for the different counties into 1 file
+    - Designed to combine all the csv crash files for the different counties into 1 file
+    - A one time use function for the 'NYS_Crash_CSVs' folder which has the csv files that have been converted FROM shp files
+    - RUN THIS IF ALL INTERSTATE CRASH DATA IS GONE 'combine_all_crashes('NYS_Crash_CSVs')'
     '''
     df = None
     for i in os.listdir(crash_file_dir):
@@ -204,9 +204,15 @@ def combine_all_crashes(crash_file_dir: str):
 
 def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, test: bool = False) -> None:
     '''
-    - Input a jam file and a crash file that has been fed throught the website because it changes some of the column names
-    - it tries to match the jams and crashes it can within the thresholds
+    - Input a jam file and a crash file that has been fed throught the shp to csv website because it changes some of the column names
+    - DISTANCE and LOCATION filters are depricated and were for initial testing
+    - PERFECTFIT filter finds all the points where the each jam has 1 crash that is the closest AND the soonest,
+        we did not use this method due to the fact that multiple jam alerts can be generated from one crash which
+        this method loses out on
+    - THRESH filter just uses the thresholds so it preserves the multiple jam alerts, this is what we used in our data
     - thresholds are set within the function, we are going with 1/2hr and 2mi
+    - test parameter is just to change output file name for testing so that nothing important is overwritten
+    - RUN THIS IF VALIDATED DATA IS GONE 'validate_data('waze_jams_interstates.csv', 'interstate_crashes.csv', primary_filter.THRESH)'
     '''
     jams_date_time_col = 'properties.utc_timestamp'
     crashes_street_col = 'OnStreet'
@@ -326,7 +332,7 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, tes
         df_merged = pd.merge(df_merged_time, df_merged_loc, how='inner', on=['properties.uuid', 'CaseNumber'], suffixes=('', 'XXX'))
         df_merged.drop(columns=[col for col in df_merged.columns if col.endswith('XXX')], inplace=True)
     elif filter == primary_filter.THRESH:
-        #Time threshold
+        # Time threshold
         df_merged[jams_date_time_col] = pd.to_datetime(df_merged[jams_date_time_col], format='ISO8601')
         df_merged[crashes_time_col] = pd.to_datetime(df_merged[crashes_time_col], format='%I:%M %p')
         df_merged = df_merged[
@@ -335,7 +341,7 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, tes
                 ((df_merged[crashes_time_col].dt.hour * 60) + (df_merged[crashes_time_col].dt.minute))
             ) <= (time_threshold * 60)]
         print(f'after time thresholding: {len(df_merged)}')
-        #Distance threshold
+        # Distance threshold
         df_merged['geometry.coordinates'] = df_merged['geometry.coordinates'].apply(ast.literal_eval)
         df_merged['jams_x'] = df_merged['geometry.coordinates'].apply(lambda x: first_value_loc(x, 0))
         df_merged['jams_y'] = df_merged['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1))
@@ -349,7 +355,7 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, tes
     else:
         print('Unrecognized filter')
         return
-
+    # Clean out some extra unwanted columns, delete duplicates, reset indexes, output to csv
     df_merged.drop(columns=[col for col in df_merged.columns if 'Unnamed' in col], inplace=True)
     columns_to_check = [col for col in df_merged.columns if not isinstance(df_merged[col].iloc[0], (list, dict, tuple))]
     df_merged.drop_duplicates(subset=columns_to_check, inplace=True)
@@ -358,6 +364,16 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, tes
         df_merged.to_csv(f'{filter.value}_validated_interstates.csv')
     else:
         df_merged.to_csv('TEST.csv')
+
+def preprocess_validated_data(validated_data_file: str):
+    '''
+    - Input the file that has the validated crash and jam data
+    - Will filter out unwanted columns, encode text based data, and prepare data to be used for ML algorithm
+    '''
+    COLUMNS = [
+        'properties.delay', 'properties.length', 'properties.level',
+
+    ]
 
 
 def main():

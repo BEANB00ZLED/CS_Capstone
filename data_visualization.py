@@ -93,7 +93,3 @@ app.layout = main_panel
 if __name__ == '__main__':
     app.run(debug=True)
     #app.run_server(host= '0.0.0.0',debug=False)
-    '''df = pd.read_csv('waze_jams_I95_total.csv')
-    #Convert the data from strings to lists of floats
-    df['geometry.coordinates'] = df['geometry.coordinates'].apply(ast.literal_eval)
-    print(df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1)))'''
