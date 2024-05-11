@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import os, sys
-from util import first_value_loc
+from util import first_value_loc, DESIRED_COLUMN_INFO, cyclic_encode
 import datetime as dt
 import ast
 from enum import Enum
@@ -369,15 +369,84 @@ def preprocess_validated_data(validated_data_file: str):
     '''
     - Input the file that has the validated crash and jam data
     - Will filter out unwanted columns, encode text based data, and prepare data to be used for ML algorithm
+    - Has lots of troubleshooting output to make sure everything is working as intended, also doubles as pseudo documentation
     '''
-    COLUMNS = [
-        'properties.delay', 'properties.length', 'properties.level',
+    df = pd.read_csv('basic_thresh_validated_interstates.csv')
+    # Get only the columns we want (with troubeshooting output)
+    print(f'df originally has {len(df.columns)} columns')
+    df.drop(columns=[col for col in df.columns if col not in DESIRED_COLUMN_INFO.keys()], inplace=True)
+    print(f'df should have {len(DESIRED_COLUMN_INFO.keys())} columns, df has {len(df.columns)} columns')
+    print(f'columns that it did not find: {[col for col in DESIRED_COLUMN_INFO.keys() if col not in df.columns]}')
 
-    ]
+    # Convert the jam length from meters to miles
+    meters_to_miles =  0.000621371
+    df['properties.length'] = df['properties.length'] * meters_to_miles
+    # Convert jam length from seconds to minutes
+    df['properties.delay'] = df['properties.delay'] / 60
+    # Convert speed of jam traffic from m/s to mph
+    mps_to_mph = 2.23694
+    df['properties.speed'] = df['properties.speed'] * mps_to_mph
+
+    # Extract if the interstate number is even or odd
+    df['interstate_is_odd'] = df['properties.street'].apply(lambda x: 1 if (int(x[2:-2]) % 2 == 1) else 0)
+    print(df[['properties.street', 'interstate_is_odd']].head())
+    df.drop(columns='properties.street', inplace=True)
+
+    # Convert weekday_weekend column from T/F to 1/0
+    print(f'weekday_weekend originally \n{df["properties.weekday_weekend"].head()}\n with values {df["properties.weekday_weekend"].unique()}')
+    df['properties.weekday_weekend'] = df['properties.weekday_weekend'].astype(dtype=bool).astype(dtype=int)
+    print(f'weekday_weekend after conversion \n{df["properties.weekday_weekend"].head()}\n with values {df["properties.weekday_weekend"].unique()}')
+
+    # Use ordinal encoding for max injury
+    injury_encoding = {
+        'A': 3,
+        'B': 2,
+        'C': 1,
+        'U': 0,
+    }
+    print(f'MaxInjuryS originally \n{df["MaxInjuryS"].head()}\n with values {df["MaxInjuryS"].unique()}')
+    df['MaxInjuryS'] = df['MaxInjuryS'].apply(lambda x: injury_encoding[x[0]] if not pd.isna(x) else 0)
+    print(f'MaxInjuryS originally after encoding \n{df["MaxInjuryS"].head()}\n with values {df["MaxInjuryS"].unique()}')
+
+    # Split the crash date into year/month/day columns, apply cyclic encoding to month and day
+    print(f'CrashDate originally \n{df["CrashDate"].head()}')
+    df[['year', 'month', 'day']] = df['CrashDate'].str.split('/', expand=True).astype(int)
+    print(f'Seprated into columns \n{df[["year", "month", "day"]].head()}')
+    df = cyclic_encode(df, 'day', df['day'].max())
+    df = cyclic_encode(df, 'month', df['month'].max())
+    df.drop(columns='CrashDate', inplace=True)
+    print(f'Dates with circular encoding \n{df[["year", "month_sin", "month_cos", "day_sin", "day_cos"]].head()}')
+
+
+    # Split the crash time into hrs and minutes and apply cyclic encoding
+    print(f'CrashTimeF originally \n{df["CrashTimeF"].head()}')
+    df['CrashTimeF'] = pd.to_datetime(df['CrashTimeF'], format='ISO8601')
+    df['hour'] = df['CrashTimeF'].dt.hour
+    df['minute'] = df['CrashTimeF'].dt.minute
+    print(f'CrashTimeF after splitting \n{df[["hour", "minute"]].head()}')
+    df = cyclic_encode(df, 'hour', df['hour'].max())
+    df = cyclic_encode(df, 'minute', df['minute'].max())
+    df.drop(columns='CrashTimeF', inplace=True)
+    print(f'Times with circular encoding \n{df[["hour_sin", "hour_cos", "minute_sin", "minute_cos"]].head()}')
+
+    # Apply ordinal encoding to the light condition column
+    print(f'LightCondi originally \n{df["LightCondi"].head()}\nwith values {df["LightCondi"].unique()}')
+    light_encoding = {
+        'DAYLIGHT': 0,
+        'UNKNOWN': 0,
+        'DUSK': 1,
+        'DAWN': 1,
+        'DARK-ROAD LIGHTED': 2,
+        'DARK-ROAD UNLIGHTED': 3
+    }
+    df['LightCondi'] = df['LightCondi'].apply(lambda x: light_encoding[x] if not pd.isna(x) else 0)
+    print(f'LightCondi after encoding \n{df["LightCondi"].head()}\nwith values {df["LightCondi"].unique()}')
+
 
 
 def main():
     #combine_all_crashes('NYS_Crash_CSVs')
-    validate_data('waze_jams_interstates.csv', 'interstate_crashes.csv', primary_filter.THRESH)
+    #validate_data('waze_jams_interstates.csv', 'interstate_crashes.csv', primary_filter.THRESH)
+    preprocess_validated_data('basic_thresh_validated_interstates.csv')
 if __name__ == '__main__':
     main()
