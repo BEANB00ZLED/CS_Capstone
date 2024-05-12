@@ -20,6 +20,18 @@ def cyclic_encode(df: pd.DataFrame, column: str, max_val, drop=True) -> pd.DataF
     if drop:
         df.drop(columns=column, inplace=True)
     return df
+
+def one_hot_encode(df: pd.DataFrame, column: str, drop=True) -> pd.DataFrame:
+    '''
+    - Function takes in a datafram, desired column, and applied one hot encoding to it
+    - Added columns take the names of the values within the column
+    - Drops the orignial column by default, then returns original dataframe
+    '''
+    for value in df[column].unique():
+        df[value] = df[column].apply(lambda x: 1 if not pd.isna(x) and x == value else 0)
+    if drop:
+        df.drop(columns=column)
+    return df
     
 ALERTS_COLUMNS = ['properties.city', 'properties.confidence',
        'properties.country', 'properties.location.x', 'properties.location.y',

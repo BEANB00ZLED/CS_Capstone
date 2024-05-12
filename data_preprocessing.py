@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import os, sys
-from util import first_value_loc, DESIRED_COLUMN_INFO, cyclic_encode
+from util import first_value_loc, DESIRED_COLUMN_INFO, cyclic_encode, one_hot_encode
 import datetime as dt
 import ast
 from enum import Enum
@@ -442,7 +442,47 @@ def preprocess_validated_data(validated_data_file: str):
     df['LightCondi'] = df['LightCondi'].apply(lambda x: light_encoding[x] if not pd.isna(x) else 0)
     print(f'LightCondi after encoding \n{df["LightCondi"].head()}\nwith values {df["LightCondi"].unique()}')
 
+    # Apply one hot encoding to RoadwayCha
+    print(f'RoadwayCha before originally \n{df["RoadwayCha"].head()}\nwith values {df["RoadwayCha"].unique()}')
+    df['curve'] = df['RoadwayCha'].str.split(expand=True)[0]
+    df['grade'] = df['RoadwayCha'].str.split(expand=True)[2]
+    df['curve'] = df['curve'].apply(lambda x: 1 if (not pd.isna(x)) and ('CURVE' in x) else 0)
+    df['grade'] = df['grade'].apply(lambda x: 1 if (not pd.isna(x)) and ('GRADE' in x) else 0)
+    print(f'Curve and grade one hot encoding \n{df[["curve", "grade"]].head()}\nwith values {df["curve"].unique()} and {df["grade"].unique()}')
 
+    # Apply one hot encoding to RoadSurfac
+    print(f'RoadSurfac orginially \n{df["RoadSurfac"].head()}\n with values {df["RoadSurfac"].unique()}')
+    df = one_hot_encode(df, 'RoadSurfac')
+    print(f'After one hot encoding\n{df[["WET", "DRY", "UNKNOWN", "FLOODED WATER", "SNOW/ICE", "SLUSH"]].head()}')
+
+    # Apply one hot encoding to TrafficWay have to split myself because data is condensed
+    print(f'TrafficWay originallly \n{df["TrafficWay"].head()}\n with value {df["TrafficWay"].unique()}')
+    df['two_way'] = df['TrafficWay'].str.split(',', expand=True)[0]
+    df['divided'] = df['TrafficWay'].str.split(',', expand=True)[1]
+    df['protected_medium'] = df['TrafficWay'].str.split(',', expand=True)[2]
+    df['two_way'] = df['two_way'].apply(lambda x: 1 if (not pd.isna(x)) and ('TWO' in x) else 0)
+    df['divided'] = df['divided'].apply(lambda x: 1 if (not pd.isna(x)) and (not 'NOT' in x) else 0)
+    df['protected_medium'] = df['protected_medium'].apply(lambda x: 1 if (not pd.isna(x)) and ('POSITIVE' in x) else 0)
+    print(f'After one hot encoding\n{df[["two_way", "divided", "protected_medium"]].head()}')
+
+    # Apply one hot encoding to weather condition
+    print(f'WeatherCon originally \n{df["WeatherCon"].head()}\nwith values {df["WeatherCon"].unique()}')
+    df['WeatherCon'] = df['WeatherCon'].str.replace('\r\n', '')
+    df = one_hot_encode(df, 'WeatherCon')
+    print(f'After one hot encoding')
+    print(df[["CLOUDY", "CLEAR", "UNKNOWN", "RAIN", "SLEET/HAIL/FREEZING RAIN", "SNOW"]].head())
+
+    # Apply ordinal encoding to Intersecti
+    print(f'Intersection originally\n{df["Intersecti"].head()}\nwith values {df["Intersecti"].unique()}')
+    intersection_encoding = {
+        'INTERSECTION-RELATED': 1,
+        'Not an intersection crash': 0,
+        'AT-INTERSECTION': 2
+    }
+    df['Intersecti'] = df['Intersecti'].apply(lambda x: intersection_encoding[x] if not pd.isna(x) else 0)
+    print(f'After encoding\n{df["Intersecti"].head()}\nwith values {df["Intersecti"].unique()}')
+
+    
 
 def main():
     #combine_all_crashes('NYS_Crash_CSVs')
