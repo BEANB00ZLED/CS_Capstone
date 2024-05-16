@@ -59,19 +59,27 @@ concatenated_embedding = keras.layers.Concatenate()(embedded_sequences)
 
 # LSTM layer
 lstm_output = keras.layers.LSTM(64)(concatenated_embedding)
+flatten = keras.layers.Flatten()(lstm_output)
+text_dense = keras.layers.Dense(16)(flatten)
 
 # Combine text and numerical features
-all_features = keras.layers.Concatenate()([numerical_input, lstm_output])
+all_features = keras.layers.Concatenate()([numerical_input, text_dense])
+
+#Dense layers
+dense1 = keras.layers.Dense(64, activation='relu', name='dense1')(all_features)
+dense2 = keras.layers.Dense(128, activation='relu', name='dense2')(dense1)
+dense3 = keras.layers.Dense(64, activation='relu', name='dense3')(dense2)
+dense4 = keras.layers.Dense(32, activation='relu', name='dense4')(dense3)
 
 # Output layers
-output_delay = keras.layers.Dense(1, activation='relu', name='output_delay')(all_features)
-output_length = keras.layers.Dense(1, activation='relu', name='output_length')(all_features)
+output_delay = keras.layers.Dense(1, activation='linear', name='output_delay')(dense4)
+output_length = keras.layers.Dense(1, activation='linear', name='output_length')(dense4)
 
 # Define the model
 model = keras.models.Model(inputs=[numerical_input] + embedded_inputs, outputs=[output_delay, output_length])
 
 # Compile the model
-model.compile(optimizer='adam', loss={'output_length': 'mean_squared_error', 'output_delay': 'mean_squared_error'})
+model.compile(optimizer='adam', loss={'output_delay': 'mean_squared_error', 'output_length': 'mean_squared_error'})
 
 # Prepare data for training
 seed = 42
@@ -95,7 +103,7 @@ for padded_sequence in padded_sequences_list:
 model.fit(
     [x_numerical_train] + x_text_train_list,
     {'output_delay': y_train_delay, 'output_length': y_train_length},
-    epochs=10,
+    epochs=15,
     batch_size=32,
     validation_split=0.2
 )
