@@ -30,7 +30,7 @@ def one_hot_encode(df: pd.DataFrame, column: str, drop=True) -> pd.DataFrame:
     for value in df[column].unique():
         df[value] = df[column].apply(lambda x: 1 if not pd.isna(x) and x == value else 0)
     if drop:
-        df.drop(columns=column)
+        df.drop(columns=column, inplace=True)
     return df
     
 ALERTS_COLUMNS = ['properties.city', 'properties.confidence',
@@ -79,6 +79,5 @@ DESIRED_COLUMN_INFO = {
     'NumberOfVe': 'number of vehicles',
     'Intersecti': 'not, related, or at intersection, can use ordinal encoding',
     'CountyName': 'country name, would need full encoding',
-    'CityTownNa': 'name of city/town, would need full encoding',
-    'POSTED_SPE': 'posted speed in mph'
+    'CityTownNa': 'name of city/town, would need full encoding'
 }

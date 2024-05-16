@@ -448,6 +448,7 @@ def preprocess_validated_data(validated_data_file: str):
     df['grade'] = df['RoadwayCha'].str.split(expand=True)[2]
     df['curve'] = df['curve'].apply(lambda x: 1 if (not pd.isna(x)) and ('CURVE' in x) else 0)
     df['grade'] = df['grade'].apply(lambda x: 1 if (not pd.isna(x)) and ('GRADE' in x) else 0)
+    df.drop(columns='RoadwayCha', inplace=True)
     print(f'Curve and grade one hot encoding \n{df[["curve", "grade"]].head()}\nwith values {df["curve"].unique()} and {df["grade"].unique()}')
 
     # Apply one hot encoding to RoadSurfac
@@ -463,6 +464,7 @@ def preprocess_validated_data(validated_data_file: str):
     df['two_way'] = df['two_way'].apply(lambda x: 1 if (not pd.isna(x)) and ('TWO' in x) else 0)
     df['divided'] = df['divided'].apply(lambda x: 1 if (not pd.isna(x)) and (not 'NOT' in x) else 0)
     df['protected_medium'] = df['protected_medium'].apply(lambda x: 1 if (not pd.isna(x)) and ('POSITIVE' in x) else 0)
+    df.drop(columns='TrafficWay', inplace=True)
     print(f'After one hot encoding\n{df[["two_way", "divided", "protected_medium"]].head()}')
 
     # Apply one hot encoding to weather condition
@@ -482,7 +484,17 @@ def preprocess_validated_data(validated_data_file: str):
     df['Intersecti'] = df['Intersecti'].apply(lambda x: intersection_encoding[x] if not pd.isna(x) else 0)
     print(f'After encoding\n{df["Intersecti"].head()}\nwith values {df["Intersecti"].unique()}')
 
-    
+    #Fix some of the text data
+    df['CollisionT'] = df['CollisionT'].str.replace(r'[()]', '', regex=True).str.lower()
+    df['CrashType'] = df['CrashType'].str.replace('COLL.', 'COLLISION')
+    df['CrashType'] = df['CrashType'].str.replace('W/', 'WITH ')
+    df['CrashType'] = df['CrashType'].str.replace('ELE.', 'ELEMENT')
+    df['CrashType'] = df['CrashType'].str.replace(r'/|\s-\s|-', ' ', regex=True).str.lower()
+    df['TrafficCon'] = df['TrafficCon'].str.replace('/', ' ').str.lower()
+    df['CountyName'] = df['CountyName'].str.lower()
+    df['CityTownNa'] = df['CityTownNa'].str.lower()
+
+    df.to_csv('encoded_model_data.csv')
 
 def main():
     #combine_all_crashes('NYS_Crash_CSVs')
