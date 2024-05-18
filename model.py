@@ -60,12 +60,13 @@ concatenated_embedding = keras.layers.Concatenate()(embedded_sequences)
 # LSTM layer
 lstm_output = keras.layers.LSTM(64)(concatenated_embedding)
 flatten = keras.layers.Flatten()(lstm_output)
-text_dense = keras.layers.Dense(16)(flatten)
+text_dense1 = keras.layers.Dense(16)(flatten)
+text_dense2 = keras.layers.Dense(5)(text_dense1)
 
 # Combine text and numerical features
-all_features = keras.layers.Concatenate()([numerical_input, text_dense])
+all_features = keras.layers.Concatenate()([numerical_input, text_dense2])
 
-#Dense layers
+# Dense layers
 dense1 = keras.layers.Dense(64, activation='relu', name='dense1')(all_features)
 dense2 = keras.layers.Dense(128, activation='relu', name='dense2')(dense1)
 dense3 = keras.layers.Dense(64, activation='relu', name='dense3')(dense2)
@@ -91,6 +92,11 @@ x_numerical_train, x_numerical_test, y_train, y_test = train_test_split(
 )
 y_train_delay, y_train_length = y_train[TARGET_COLUMNS[0]], y_train[TARGET_COLUMNS[1]]
 y_test_delay, y_test_length = y_test[TARGET_COLUMNS[0]], y_test[TARGET_COLUMNS[1]]
+
+#Standardize data
+scaler = StandardScaler()
+x_numerical_train = scaler.fit_transform(x_numerical_train)
+x_numerical_test = scaler.fit_transform(x_numerical_test)
 
 x_text_train_list = []
 x_text_test_list = []
