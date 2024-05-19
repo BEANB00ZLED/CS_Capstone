@@ -83,11 +83,12 @@ model = keras.models.Model(inputs=[numerical_input] + embedded_inputs, outputs=[
 model.compile(optimizer='adam', loss={'output_delay': 'mean_squared_error', 'output_length': 'mean_squared_error'})
 
 # Prepare data for training
-seed = 42
+seed = 87
+test_split = 0.2
 x_numerical_train, x_numerical_test, y_train, y_test = train_test_split(
     df[num_col].values,
     df[TARGET_COLUMNS],
-    test_size=0.2,
+    test_size=test_split,
     random_state=seed
 )
 y_train_delay, y_train_length = y_train[TARGET_COLUMNS[0]], y_train[TARGET_COLUMNS[1]]
@@ -102,14 +103,14 @@ x_text_train_list = []
 x_text_test_list = []
 
 for padded_sequence in padded_sequences_list:
-    x_text_train, x_text_test = train_test_split(padded_sequence, test_size=0.2, random_state=seed)
+    x_text_train, x_text_test = train_test_split(padded_sequence, test_size=test_split, random_state=seed)
     x_text_train_list.append(x_text_train)
     x_text_test_list.append(x_text_test)
 
 model.fit(
     [x_numerical_train] + x_text_train_list,
     {'output_delay': y_train_delay, 'output_length': y_train_length},
-    epochs=15,
+    epochs=30,
     batch_size=32,
     validation_split=0.2
 )
