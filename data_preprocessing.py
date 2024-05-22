@@ -365,7 +365,7 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, tes
     else:
         df_merged.to_csv('TEST.csv')
 
-def preprocess_validated_data(validated_data_file: str):
+def preprocess_validated_data(validated_data_file: str, test: bool = False):
     '''
     - Input the file that has the validated crash and jam data
     - Will filter out unwanted columns, encode text based data, and prepare data to be used for ML algorithm
@@ -493,8 +493,11 @@ def preprocess_validated_data(validated_data_file: str):
     df['TrafficCon'] = df['TrafficCon'].str.replace('/', ' ').str.lower()
     df['CountyName'] = df['CountyName'].str.lower()
     df['CityTownNa'] = df['CityTownNa'].str.lower()
-
-    df.to_csv('encoded_model_data.csv')
+    
+    if not test:
+        df.to_csv('encoded_model_data.csv')
+    else:
+        df.to_csv('encoded_TEST.csv')
 
 def main():
     #combine_all_crashes('NYS_Crash_CSVs')

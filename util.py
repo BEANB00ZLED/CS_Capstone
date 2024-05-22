@@ -81,3 +81,15 @@ DESIRED_COLUMN_INFO = {
     'CountyName': 'country name, would need full encoding',
     'CityTownNa': 'name of city/town, would need full encoding'
 }
+
+TEXT_COLUMNS = [
+    'CollisionT',
+    'CrashType',
+    'TrafficCon',
+    'CountyName',
+    'CityTownNa'
+]
+TARGET_COLUMNS = [
+    'properties.delay',
+    'properties.length'
+]

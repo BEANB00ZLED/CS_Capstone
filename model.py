@@ -2,21 +2,12 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import r2_score
 from keras_preprocessing.text import Tokenizer
 from keras_preprocessing.sequence import pad_sequences
 import keras
+from util import TEXT_COLUMNS, TARGET_COLUMNS
 
-TEXT_COLUMNS = [
-    'CollisionT',
-    'CrashType',
-    'TrafficCon',
-    'CountyName',
-    'CityTownNa'
-]
-TARGET_COLUMNS = [
-    'properties.delay',
-    'properties.length'
-]
 
 # Tokenize and pad all text columns together
 max_length = 30
@@ -107,18 +98,28 @@ for padded_sequence in padded_sequences_list:
     x_text_train_list.append(x_text_train)
     x_text_test_list.append(x_text_test)
 
-model.fit(
-    [x_numerical_train] + x_text_train_list,
-    {'output_delay': y_train_delay, 'output_length': y_train_length},
-    epochs=30,
-    batch_size=32,
-    validation_split=0.2
-)
+def main():
+    model.fit(
+        [x_numerical_train] + x_text_train_list,
+        {'output_delay': y_train_delay, 'output_length': y_train_length},
+        epochs=30,
+        batch_size=32,
+        validation_split=0.2
+    )
 
-results = model.evaluate(
-    [x_numerical_test] + x_text_test_list,
-    {'output_delay': y_test_delay, 'output_length': y_test_length}
-)
+    results = model.evaluate(
+        [x_numerical_test] + x_text_test_list,
+        {'output_delay': y_test_delay, 'output_length': y_test_length}
+    )
 
-print(f'Test Loss: {results}')
+    #Computer r2 scores for delay and length separately
+    y_true = [[i, j] for i, j in zip(y_test_delay.values, y_test_length.values)]
+    y_pred = model.predict([x_numerical_test] + x_text_test_list)
+    r2_delay = r2_score(y_test_delay, y_pred[0])
+    r2_length = r2_score(y_test_length, y_pred[1])
+    
 
+    print(f'Test Loss: {results}\nR^2 values are\nDelay: {r2_delay}\nLength: {r2_length}')
+
+if __name__ == '__main__':
+    main()
