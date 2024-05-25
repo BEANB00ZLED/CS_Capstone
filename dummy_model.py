@@ -4,7 +4,7 @@ from sklearn.dummy import DummyRegressor
 from keras_preprocessing.sequence import pad_sequences
 import keras
 from util import TEXT_COLUMNS, TARGET_COLUMNS
-from model import x_numerical_test, x_numerical_train, y_train_delay, y_train_length, y_test_delay, y_test_length
+from regression_model import x_numerical_test, x_numerical_train, y_train_delay, y_train_length, y_test_delay, y_test_length
 
 def main():
     strat = 'mean'

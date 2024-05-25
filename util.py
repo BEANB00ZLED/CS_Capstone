@@ -1,5 +1,8 @@
 import numpy as np
 import pandas as pd
+import keras
+import sys
+import os
 
 def first_value_loc(list_of_lists: list, index: int):
     if len(list_of_lists) > 0:
@@ -32,6 +35,75 @@ def one_hot_encode(df: pd.DataFrame, column: str, drop=True) -> pd.DataFrame:
     if drop:
         df.drop(columns=column, inplace=True)
     return df
+
+def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: float) -> None:
+    '''
+    - Function takes in a keras model and the metrics used for detetmining efficacy
+    - Creates a text and model file of the model with the metrics saved based on the file running this
+    - If there is a file that already exists it will check its metric file to compare and ask if you want to overwrite
+    '''
+    def create_txt_file(file_path: str) -> None:
+        '''
+        - Inner function to create text file
+        - WARNING THIS IS DESTRUCTIVE
+        '''
+        with open(file_path, 'w') as file:
+            lines = []
+            lines.append(f'Model: {parent_file}\n')
+            lines.append(f'Overall error: {result}\n')
+            lines.append(f'Delay R^2: {r2_delay}\n')
+            lines.append(f'Length R^2: {r2_length}\n')
+            file.writelines(lines)
+
+    parent_file = os.path.basename(sys.argv[0]).split('.')[0]
+    print(f'Save model function is being called from {parent_file}')
+    text_file = parent_file + '.txt'
+    model_file = parent_file + '.keras'
+    # If this is the first time saving the model
+    if model_file not in os.listdir() and text_file not in os.listdir():
+        print('Creating intial files...')
+        create_txt_file(text_file)
+        model.save(model_file)
+        print('Model is saved!')
+    else:
+        print('Model files already exist')
+        with open(text_file, 'a+') as current_file:
+            # Move cursor to beginning of file and then read
+            current_file.seek(0)
+            current_contents = current_file.readlines()
+            # Get old metrics
+            current_result = float(current_contents[1].split(': ')[-1].strip())
+            current_delay = float(current_contents[2].split(': ')[-1].strip())
+            current_length = float(current_contents[3].split(': ')[-1].strip())
+            # If the current file has worse metric then what was passed overwrite it
+            if current_result >= result and current_delay <= r2_delay and current_length <= r2_length:
+                print('New model is better, saving...')
+                create_txt_file(text_file)
+                model.save(model_file, overwrite=True)
+                print('Model is saved!')
+            elif current_result <= result and current_delay >= r2_delay and current_length >= r2_length:
+                print('New model is worse, no changes made...')
+            else:
+                print('Current best vs. input model:')
+                print(f'Overall error: {[current_result, result]}')
+                print(f'Delay R^2: {[current_delay, r2_delay]}')
+                print(f'Length R^2: {[current_length, r2_length]}')
+                save = input('Do you wish to save this model? (Y/N): ')
+                if save == 'Y':
+                    create_txt_file(text_file)
+                    model.save(model_file, overwrite=True)
+                    print('Model is saved!')
+                else:
+                    print('Not saving model, exiting...')
+
+
+
+        
+        
+
+
+
+    
     
 ALERTS_COLUMNS = ['properties.city', 'properties.confidence',
        'properties.country', 'properties.location.x', 'properties.location.y',
@@ -93,3 +165,4 @@ TARGET_COLUMNS = [
     'properties.delay',
     'properties.length'
 ]
+

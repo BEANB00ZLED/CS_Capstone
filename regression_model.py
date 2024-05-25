@@ -6,7 +6,8 @@ from sklearn.metrics import r2_score
 from keras_preprocessing.text import Tokenizer
 from keras_preprocessing.sequence import pad_sequences
 import keras
-from util import TEXT_COLUMNS, TARGET_COLUMNS
+from util import TEXT_COLUMNS, TARGET_COLUMNS, save_model
+import os
 
 
 # Tokenize and pad all text columns together
@@ -33,45 +34,6 @@ for col in TEXT_COLUMNS:
 
 # Numerical columns
 num_col = [col for col in df.columns if (col not in TEXT_COLUMNS) and ('Unnamed' not in col) and (col not in TARGET_COLUMNS)]
-numerical_input = keras.layers.Input(shape=(len(num_col),), name='numerical_input')
-
-# Textual input layers
-embedded_inputs = [keras.layers.Input(shape=(max_length,), name=f'embedded_input_{i}') for i in range(len(TEXT_COLUMNS))]
-
-# Embedding layer
-embedding_dim = 100
-embedding_layer = keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length)
-
-# Embed each text column
-embedded_sequences = [embedding_layer(embed_input) for embed_input in embedded_inputs]
-
-# Concatenate embedded sequences
-concatenated_embedding = keras.layers.Concatenate()(embedded_sequences)
-
-# LSTM layer
-lstm_output = keras.layers.LSTM(64)(concatenated_embedding)
-flatten = keras.layers.Flatten()(lstm_output)
-text_dense1 = keras.layers.Dense(16)(flatten)
-text_dense2 = keras.layers.Dense(5)(text_dense1)
-
-# Combine text and numerical features
-all_features = keras.layers.Concatenate()([numerical_input, text_dense2])
-
-# Dense layers
-dense1 = keras.layers.Dense(64, activation='relu', name='dense1')(all_features)
-dense2 = keras.layers.Dense(128, activation='relu', name='dense2')(dense1)
-dense3 = keras.layers.Dense(64, activation='relu', name='dense3')(dense2)
-dense4 = keras.layers.Dense(32, activation='relu', name='dense4')(dense3)
-
-# Output layers
-output_delay = keras.layers.Dense(1, activation='linear', name='output_delay')(dense4)
-output_length = keras.layers.Dense(1, activation='linear', name='output_length')(dense4)
-
-# Define the model
-model = keras.models.Model(inputs=[numerical_input] + embedded_inputs, outputs=[output_delay, output_length])
-
-# Compile the model
-model.compile(optimizer='adam', loss={'output_delay': 'mean_squared_error', 'output_length': 'mean_squared_error'})
 
 # Prepare data for training
 seed = 87
@@ -99,6 +61,45 @@ for padded_sequence in padded_sequences_list:
     x_text_test_list.append(x_text_test)
 
 def main():
+    numerical_input = keras.layers.Input(shape=(len(num_col),), name='numerical_input')
+
+    # Textual input layers
+    embedded_inputs = [keras.layers.Input(shape=(max_length,), name=f'embedded_input_{i}') for i in range(len(TEXT_COLUMNS))]
+
+    # Embedding layer
+    embedding_dim = 100
+    embedding_layer = keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length)
+
+    # Embed each text column
+    embedded_sequences = [embedding_layer(embed_input) for embed_input in embedded_inputs]
+
+    # Concatenate embedded sequences
+    concatenated_embedding = keras.layers.Concatenate()(embedded_sequences)
+
+    # LSTM layer
+    lstm_output = keras.layers.LSTM(64)(concatenated_embedding)
+    flatten = keras.layers.Flatten()(lstm_output)
+    text_dense1 = keras.layers.Dense(16)(flatten)
+    text_dense2 = keras.layers.Dense(5)(text_dense1)
+
+    # Combine text and numerical features
+    all_features = keras.layers.Concatenate()([numerical_input, text_dense2])
+
+    # Dense layers
+    dense1 = keras.layers.Dense(64, activation='relu', name='dense1')(all_features)
+    dense2 = keras.layers.Dense(128, activation='relu', name='dense2')(dense1)
+    dense3 = keras.layers.Dense(64, activation='relu', name='dense3')(dense2)
+    dense4 = keras.layers.Dense(32, activation='relu', name='dense4')(dense3)
+
+    # Output layers
+    output_delay = keras.layers.Dense(1, activation='linear', name='output_delay')(dense4)
+    output_length = keras.layers.Dense(1, activation='linear', name='output_length')(dense4)
+
+    # Define the model
+    model = keras.models.Model(inputs=[numerical_input] + embedded_inputs, outputs=[output_delay, output_length])
+
+    # Compile the model
+    model.compile(optimizer='adam', loss={'output_delay': 'mean_squared_error', 'output_length': 'mean_squared_error'})
     model.fit(
         [x_numerical_train] + x_text_train_list,
         {'output_delay': y_train_delay, 'output_length': y_train_length},
@@ -120,6 +121,7 @@ def main():
     
 
     print(f'Test Loss: {results}\nR^2 values are\nDelay: {r2_delay}\nLength: {r2_length}')
+    save_model(model, results, r2_delay, r2_length)
 
 if __name__ == '__main__':
     main()
