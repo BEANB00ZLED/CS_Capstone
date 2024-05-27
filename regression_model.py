@@ -6,6 +6,7 @@ from sklearn.metrics import r2_score
 from keras_preprocessing.text import Tokenizer
 from keras_preprocessing.sequence import pad_sequences
 import keras
+import keras_tuner as kt
 from util import TEXT_COLUMNS, TARGET_COLUMNS, save_model
 import os
 
@@ -77,10 +78,10 @@ def main():
     concatenated_embedding = keras.layers.Concatenate()(embedded_sequences)
 
     # LSTM layer
-    lstm_output = keras.layers.LSTM(64)(concatenated_embedding)
+    lstm_output = keras.layers.LSTM(64, name='lstm_output')(concatenated_embedding)
     flatten = keras.layers.Flatten()(lstm_output)
-    text_dense1 = keras.layers.Dense(16)(flatten)
-    text_dense2 = keras.layers.Dense(5)(text_dense1)
+    text_dense1 = keras.layers.Dense(16, activation='relu', name='text_dense1')(flatten)
+    text_dense2 = keras.layers.Dense(5, activation='relu', name='text_dense2')(text_dense1)
 
     # Combine text and numerical features
     all_features = keras.layers.Concatenate()([numerical_input, text_dense2])

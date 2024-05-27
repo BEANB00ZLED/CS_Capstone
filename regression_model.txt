@@ -1,4 +1,4 @@
 Model: regression_model
-Overall error: 3.207810640335083
+Overall loss: 3.207810640335083
 Delay R^2: 0.49746965915568475
 Length R^2: 0.41774450580210976

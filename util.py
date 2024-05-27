@@ -50,7 +50,7 @@ def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: fl
         with open(file_path, 'w') as file:
             lines = []
             lines.append(f'Model: {parent_file}\n')
-            lines.append(f'Overall error: {result}\n')
+            lines.append(f'Overall loss: {result}\n')
             lines.append(f'Delay R^2: {r2_delay}\n')
             lines.append(f'Length R^2: {r2_length}\n')
             file.writelines(lines)
@@ -85,7 +85,7 @@ def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: fl
                 print('New model is worse, no changes made...')
             else:
                 print('Current best vs. input model:')
-                print(f'Overall error: {[current_result, result]}')
+                print(f'Overall loss: {[current_result, result]}')
                 print(f'Delay R^2: {[current_delay, r2_delay]}')
                 print(f'Length R^2: {[current_length, r2_length]}')
                 save = input('Do you wish to save this model? (Y/N): ')
@@ -97,14 +97,6 @@ def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: fl
                     print('Not saving model, exiting...')
 
 
-
-        
-        
-
-
-
-    
-    
 ALERTS_COLUMNS = ['properties.city', 'properties.confidence',
        'properties.country', 'properties.location.x', 'properties.location.y',
        'properties.reliability', 'properties.reportDescription',
