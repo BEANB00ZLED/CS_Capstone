@@ -9,6 +9,7 @@ import keras
 import keras_tuner as kt
 from util import TEXT_COLUMNS, TARGET_COLUMNS, save_model
 import os
+import tensorflow as tf
 
 
 # Tokenize and pad all text columns together
@@ -62,52 +63,74 @@ for padded_sequence in padded_sequences_list:
     x_text_test_list.append(x_text_test)
 
 def main():
-    numerical_input = keras.layers.Input(shape=(len(num_col),), name='numerical_input')
+    def build_model(hp):
+        numerical_input = keras.layers.Input(shape=(len(num_col),), name='numerical_input')
 
-    # Textual input layers
-    embedded_inputs = [keras.layers.Input(shape=(max_length,), name=f'embedded_input_{i}') for i in range(len(TEXT_COLUMNS))]
+        # Textual input layers
+        embedded_inputs = [keras.layers.Input(shape=(max_length,), name=f'embedded_input_{i}') for i in range(len(TEXT_COLUMNS))]
 
-    # Embedding layer
-    embedding_dim = 100
-    embedding_layer = keras.layers.Embedding(vocab_size, embedding_dim, input_length=max_length)
+        # Embedding layer
+        embedding_dim = hp.Int('embedding_dim', min_value=32, max_value=128, step=32)
+        embedding_layer = keras.layers.Embedding(input_dim=vocab_size, output_dim=embedding_dim, input_length=max_length)
 
-    # Embed each text column
-    embedded_sequences = [embedding_layer(embed_input) for embed_input in embedded_inputs]
+        # Embed each text column
+        embedded_sequences = [embedding_layer(embed_input) for embed_input in embedded_inputs]
 
-    # Concatenate embedded sequences
-    concatenated_embedding = keras.layers.Concatenate()(embedded_sequences)
+        # Concatenate embedded sequences
+        concatenated_embedding = keras.layers.Concatenate()(embedded_sequences)
 
-    # LSTM layer
-    lstm_output = keras.layers.LSTM(64, name='lstm_output')(concatenated_embedding)
-    flatten = keras.layers.Flatten()(lstm_output)
-    text_dense1 = keras.layers.Dense(16, activation='relu', name='text_dense1')(flatten)
-    text_dense2 = keras.layers.Dense(5, activation='relu', name='text_dense2')(text_dense1)
+        # LSTM layer
+        lstm_units = hp.Int('lstm_units', min_value=32, max_value=128, step=32)
+        lstm_output = keras.layers.LSTM(lstm_units, name='lstm_output')(concatenated_embedding)
+        flatten = keras.layers.Flatten()(lstm_output)
+        text_dense1 = keras.layers.Dense(hp.Int('text_dense1_units', min_value=16, max_value=64, step=16), activation='relu', name='text_dense1')(flatten)
+        text_dense2 = keras.layers.Dense(hp.Int('text_dense2_units', min_value=4, max_value=32, step=4), activation='relu', name='text_dense2')(text_dense1)
 
-    # Combine text and numerical features
-    all_features = keras.layers.Concatenate()([numerical_input, text_dense2])
+        # Combine text and numerical features
+        all_features = keras.layers.Concatenate()([numerical_input, text_dense2])
 
-    # Dense layers
-    dense1 = keras.layers.Dense(64, activation='relu', name='dense1')(all_features)
-    dense2 = keras.layers.Dense(128, activation='relu', name='dense2')(dense1)
-    dense3 = keras.layers.Dense(64, activation='relu', name='dense3')(dense2)
-    dense4 = keras.layers.Dense(32, activation='relu', name='dense4')(dense3)
+        # Dense layers
+        dense1 = keras.layers.Dense(hp.Int('dense1_units', min_value=64, max_value=256, step=64), activation='relu', name='dense1')(all_features)
+        dense2 = keras.layers.Dense(hp.Int('dense2_units', min_value=64, max_value=256, step=64), activation='relu', name='dense2')(dense1)
+        dense3 = keras.layers.Dense(hp.Int('dense3_units', min_value=64, max_value=128, step=32), activation='relu', name='dense3')(dense2)
+        dense4 = keras.layers.Dense(hp.Int('dense4_units', min_value=16, max_value=128, step=16), activation='relu', name='dense4')(dense3)
 
-    # Output layers
-    output_delay = keras.layers.Dense(1, activation='linear', name='output_delay')(dense4)
-    output_length = keras.layers.Dense(1, activation='linear', name='output_length')(dense4)
+        # Output layers
+        output_delay = keras.layers.Dense(1, activation='linear', name='output_delay')(dense4)
+        output_length = keras.layers.Dense(1, activation='linear', name='output_length')(dense4)
 
-    # Define the model
-    model = keras.models.Model(inputs=[numerical_input] + embedded_inputs, outputs=[output_delay, output_length])
+        # Define the model
+        model = keras.models.Model(inputs=[numerical_input] + embedded_inputs, outputs=[output_delay, output_length])
 
-    # Compile the model
-    model.compile(optimizer='adam', loss={'output_delay': 'mean_squared_error', 'output_length': 'mean_squared_error'})
-    model.fit(
+        # Determine optimal optimizer
+        optimizer = keras.optimizers.Adam(learning_rate=hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG'))
+        # Compile the model
+        model.compile(optimizer=optimizer, loss={'output_delay': 'mean_squared_error', 'output_length': 'mean_squared_error'})
+
+        return model
+
+    tuner = kt.Hyperband(
+        hypermodel=build_model,
+        objective='val_loss',
+        max_epochs=40,
+        factor=3,
+        directory='results_dir',
+        project_name='traffic_jam'
+    )
+    tuner.search(
+        [x_numerical_train] + x_text_train_list,
+        {'output_delay': y_train_delay, 'output_length': y_train_length},
+        epochs=30,
+        validation_split=0.2
+    )
+    model = tuner.get_best_models(num_models=1)[0]
+    '''model.fit(
         [x_numerical_train] + x_text_train_list,
         {'output_delay': y_train_delay, 'output_length': y_train_length},
         epochs=30,
         batch_size=32,
         validation_split=0.2
-    )
+    )'''
 
     results = model.evaluate(
         [x_numerical_test] + x_text_test_list,

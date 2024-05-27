@@ -163,3 +163,4 @@ cython_debug/
 mapbox_token.py
 /waze_jams
 /waze_alerts
+/results_dir
