@@ -1,10 +1,12 @@
 import pandas as pd
 import json
 import os, sys
-from util import first_value_loc, DESIRED_COLUMN_INFO, cyclic_encode, one_hot_encode
+from util import first_value_loc, DESIRED_COLUMN_INFO, cyclic_encode, one_hot_encode, TARGET_COLUMNS, TEXT_COLUMNS
 import datetime as dt
 import ast
 from enum import Enum
+import matplotlib.pyplot as plt
+import seaborn as sb
 
 INTERSTATE_NUMS = [95, 90, 86, 88, 81, 87, 390]
 
@@ -16,7 +18,7 @@ class primary_filter(Enum):
     THRESH = 'basic_thresh'
 
 
-def combine_all_jams(interstate_num: int):
+def combine_all_jams(interstate_num: int) -> None:
     """
     This function combines all JSON data from the 'waze_jams' directory
     into a single DataFrame and writes it to a CSV file.
@@ -56,8 +58,9 @@ def combine_all_jams(interstate_num: int):
     df = df[df['properties.city'].str[-2:] == 'NY']
     # Write the DataFrame to a CSV file
     df.to_csv(f'waze_jams_I{str(interstate_num)}.csv')
+    return None
 
-def combine_all_jams_interstate():
+def combine_all_jams_interstate() -> None:
     '''
     - Function for looping through the 'waze_jams' directory which contains all the json file data
     - Gets all the interstate data and outputs it to a CSV file
@@ -87,16 +90,18 @@ def combine_all_jams_interstate():
     df = df[df['properties.city'].str[-2:] == 'NY']
     # Write the DataFrame to a CSV file
     df.to_csv(f'waze_jams_interstates.csv')
+    return None
 
-def generate_all_jams():
+def generate_all_jams() -> None:
     '''
     - This was for when I was going to just look at some of the major intersections and get the jams files for them
     - DEPRECTATED, we are looking at all interstates
     '''
     for i in INTERSTATE_NUMS:
         combine_all_jams(i)
+    return None
 
-def combine_all_alerts():
+def combine_all_alerts() -> None:
     """
     - This function combines all JSON data from the 'waze_jams' directory into a single DataFrame and writes it to a CSV file.
     - Only data with 'I-95 N' or 'I-95 S' street names is included.
@@ -121,8 +126,9 @@ def combine_all_alerts():
                 df = pd.concat([df, data], ignore_index=True)
     # Write the DataFrame to a CSV file
     df.to_csv('waze_alerts_I95_total.csv')
+    return None
 
-def see_all_jams():
+def see_all_jams() -> None:
     """
     - This function counts the occurrence of different street names in the 'waze_jams' directory.
     - The output is written to 'counts.txt'.
@@ -161,8 +167,9 @@ def see_all_jams():
         for i in counts.keys():
             # Print each key and its count
             print(i + ': ' + str(counts[i]))
+    return None
 
-def filter_I95():
+def filter_I95() -> None:
     '''
     - Filters out all the points in the I95 data that isnt in NYS (single use function for when we were looking at singel intersection)
     - DEPRECATED
@@ -174,8 +181,9 @@ def filter_I95():
     df['properties.city'] = df['properties.city'].apply(lambda x: x.strip())
     df = df[df['properties.city'].str[-2:] == 'NY']
     df.to_csv('waze_jams_I95.csv')
+    return None
 
-def clean_crash(crash_file: str, *on_street: str):
+def clean_crash(crash_file: str, *on_street: str) -> None:
     '''
     - Gets rid of some weird spaces that werte added to column names (prolly due to vscode extension)
     - Filters out data that is not on the street names, (was designed for when we were looking at per interstate basis)
@@ -187,8 +195,9 @@ def clean_crash(crash_file: str, *on_street: str):
     # Filter out all datapoints not on the desired interstate
     df = df[df['OnStreet'].isin(on_street)]
     df.to_csv(crash_file)
+    return None
 
-def combine_all_crashes(crash_file_dir: str):
+def combine_all_crashes(crash_file_dir: str) -> None:
     '''
     - Designed to combine all the csv crash files for the different counties into 1 file
     - A one time use function for the 'NYS_Crash_CSVs' folder which has the csv files that have been converted FROM shp files
@@ -201,6 +210,7 @@ def combine_all_crashes(crash_file_dir: str):
         df.drop_duplicates(inplace=True)
     print(len(df))
     df.to_csv('interstate_crashes.csv')
+    return None
 
 def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, test: bool = False) -> None:
     '''
@@ -354,7 +364,7 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, tes
 
     else:
         print('Unrecognized filter')
-        return
+        return None
     # Clean out some extra unwanted columns, delete duplicates, reset indexes, output to csv
     df_merged.drop(columns=[col for col in df_merged.columns if 'Unnamed' in col], inplace=True)
     columns_to_check = [col for col in df_merged.columns if not isinstance(df_merged[col].iloc[0], (list, dict, tuple))]
@@ -365,7 +375,7 @@ def validate_data(jams_file: str, crashes_file: str, filter: primary_filter, tes
     else:
         df_merged.to_csv('TEST.csv')
 
-def preprocess_validated_data(validated_data_file: str, test: bool = False):
+def preprocess_validated_data(validated_data_file: str, test: bool = False) -> None:
     '''
     - Input the file that has the validated crash and jam data
     - Will filter out unwanted columns, encode text based data, and prepare data to be used for ML algorithm
@@ -498,10 +508,44 @@ def preprocess_validated_data(validated_data_file: str, test: bool = False):
         df.to_csv('encoded_model_data.csv')
     else:
         df.to_csv('encoded_TEST.csv')
+    return None
+
+def see_correlation(correlation_thresh: float = 0.4, drop_thresh: int = 0) -> list[str]:
+    '''
+    - A function that goes through the encoded data and displays the pearson coefficients of the independent variables,
+    it returns a list of the columns to drop to reduce correlation
+    - correlation_thresh: minimum value of variable correlation to flag as high correlation
+    - drop_thresh: the number of the allowable high correlation variable combinations within a column
+    '''
+    # Make the heatmap for the pearson correlation
+    df = pd.read_csv('encoded_model_data.csv').drop(columns=TARGET_COLUMNS).drop(columns=TEXT_COLUMNS).drop(columns='Unnamed: 0')
+    corr = df.corr(method='pearson')
+    plot = sb.heatmap(corr, cmap='RdBu', xticklabels=df.columns, yticklabels=df.columns)
+    plot.set_title('Pearson Correlation Between Independent Variables')
+    plot.set_xlabel('Variable')
+    plot.set_ylabel('Variable')
+    plt.show()
+    # See which variables have the highest level of correlation
+    bad_cols = []
+    while True:
+        corr = df.corr(method='pearson')
+        bad_vars = corr.map(lambda x: ((abs(x) >= correlation_thresh) & (abs(x) < 1))).sum()
+        max = bad_vars.max()
+        max_col = bad_vars.idxmax()  
+        print(f'Max: {max_col} - {max}')
+        if max <= drop_thresh:
+            break
+        bad_cols.append(max_col)
+        df.drop(columns=max_col, inplace=True)
+    print(f'The columns to reduce correlation below thresh: {bad_cols}')
+    return bad_cols
 
 def main():
     #combine_all_crashes('NYS_Crash_CSVs')
     #validate_data('waze_jams_interstates.csv', 'interstate_crashes.csv', primary_filter.THRESH)
-    preprocess_validated_data('basic_thresh_validated_interstates.csv')
+    #preprocess_validated_data('basic_thresh_validated_interstates.csv')
+    bad_cols = see_correlation(drop_thresh=1)
+    df = pd.read_csv('encoded_model_data.csv').drop(columns=bad_cols)
+    df.to_csv('correlation_free.csv')
 if __name__ == '__main__':
     main()

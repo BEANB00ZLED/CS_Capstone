@@ -14,6 +14,7 @@ def first_value_loc(list_of_lists: list, index: int):
     
 def cyclic_encode(df: pd.DataFrame, column: str, max_val, drop=True) -> pd.DataFrame:
     '''
+    ADAPTED FROM: https://www.kaggle.com/code/avanwyk/encoding-cyclical-features-for-deep-learning
     - Function takes in a dataframe, desired column, and max value within that column
     - It applies cyclic encoding to the column to get the sin and cos values (adds _sin and _cos to col name)
     - Drops the original column by default, the returns original dataframe 
@@ -50,7 +51,9 @@ def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: fl
         with open(file_path, 'w') as file:
             lines = []
             lines.append(f'Model: {parent_file}\n')
-            lines.append(f'Overall loss: {result}\n')
+            lines.append(f'Overall loss: {result[0]}\n')
+            lines.append(f'Delay MSE: {result[1]}\n')
+            lines.append(f'Length MSE: {result[2]}\n')
             lines.append(f'Delay R^2: {r2_delay}\n')
             lines.append(f'Length R^2: {r2_length}\n')
             file.writelines(lines)
@@ -72,22 +75,26 @@ def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: fl
             current_file.seek(0)
             current_contents = current_file.readlines()
             # Get old metrics
-            current_result = float(current_contents[1].split(': ')[-1].strip())
-            current_delay = float(current_contents[2].split(': ')[-1].strip())
-            current_length = float(current_contents[3].split(': ')[-1].strip())
+            current_result_overall = float(current_contents[1].split(': ')[-1].strip())
+            current_delay_mse = float(current_contents[2].split(': ')[-1].strip())
+            current_length_mse = float(current_contents[3].split(': ')[-1].strip())
+            current_delay_r2 = float(current_contents[4].split(': ')[-1].strip())
+            current_length_r2 = float(current_contents[5].split(': ')[-1].strip())
             # If the current file has worse metric then what was passed overwrite it
-            if current_result >= result and current_delay <= r2_delay and current_length <= r2_length:
+            if (current_result_overall > result[0]) and (current_delay_mse > result[1]) and (current_length_mse > result[2]) and (current_delay_r2 < r2_delay) and (current_length_r2 < r2_length):
                 print('New model is better, saving...')
                 create_txt_file(text_file)
                 model.save(model_file, overwrite=True)
                 print('Model is saved!')
-            elif current_result <= result and current_delay >= r2_delay and current_length >= r2_length:
-                print('New model is worse, no changes made...')
+            elif (current_result_overall <= result[0]) and (current_delay_mse <= result[1]) and (current_length_mse <= result[2]) and (current_delay_r2 >= r2_delay) and (current_length_r2 >= r2_length):
+                print('New model is the same or worse, no changes made...')
             else:
                 print('Current best vs. input model:')
-                print(f'Overall loss: {[current_result, result]}')
-                print(f'Delay R^2: {[current_delay, r2_delay]}')
-                print(f'Length R^2: {[current_length, r2_length]}')
+                print(f'Overall loss: {[current_result_overall, result[0]]}')
+                print(f'Delay MSE: {[current_delay_mse, result[1]]}')
+                print(f'Length MSE: {[current_length_mse, result[2]]}')
+                print(f'Delay R^2: {[current_delay_r2, r2_delay]}')
+                print(f'Length R^2: {[current_length_r2, r2_length]}')
                 save = input('Do you wish to save this model? (Y/N): ')
                 if save == 'Y':
                     create_txt_file(text_file)
@@ -95,8 +102,17 @@ def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: fl
                     print('Model is saved!')
                 else:
                     print('Not saving model, exiting...')
+    return None
 
+def get_model_info(model_file: str) -> None:
+    model = keras.models.load_model(model_file)
+    model.summary()
+    text_file = model_file.split('.')[0] + '.txt'
+    with open(text_file, 'r') as file:
+        print(file.read())
+    return None
 
+            
 ALERTS_COLUMNS = ['properties.city', 'properties.confidence',
        'properties.country', 'properties.location.x', 'properties.location.y',
        'properties.reliability', 'properties.reportDescription',
@@ -119,14 +135,14 @@ DESIRED_COLUMN_INFO = {
     'properties.length': 'jam length in meters, will convert to miles for consistency',
     'properties.level': 'traffic congestion level, (0 = free flow, 5 = blocked)',
     'properties.speed': 'speed of jam traffic in m/s will convert to mph for consistency',
-    'properties.street': 'says which street/road name the jam is on, will extract if interstate number is even or odd',
+    'properties.street': 'DITCH, says which street/road name the jam is on, will extract if interstate number is even or odd',
     'properties.day_of_week': 'day of the week the jam occurs on, 0 - 6, 0 = monday',
     'properties.weekday_weekend': 'if it is a weekend = True, weekday  = False',
     'X': 'longitude coordinate of crash in degrees',
     'Y': 'latitude coordinate of crash in degrees',
     'MaxInjuryS': 'injury severity, A_ - C_ =  most to least severe, U_  = Unkown / only property damage, handle blanks as unkown',
     'CollisionT': 'type of collision, other can be handled as 0, text classes need full encoding',
-    'CrashDate': 'date of crash, M/D/YYYY format, split into multiple columns for month/day/year',
+    'CrashDate': 'SWITCH TO JUST MONTHS date of crash, M/D/YYYY format, split into multiple columns for month/day/year',
     'CrashTimeF': 'time of crash, 24 hr time, HH:MM, ignore date attatched to column, split into multiple columns for hr/min',
     'CrashType': 'what was hit / involved in crash, text classes need full encoding',
     'LightCondi': 'light condition at time of crash, text classes could use ordinal encoding',
@@ -157,4 +173,13 @@ TARGET_COLUMNS = [
     'properties.delay',
     'properties.length'
 ]
+
+'''
+Include either the date or the weekday/weekend type information
+keep county keep city
+bad too have two different data columns that are correlated with eachother, pearson correlation
+princripal component analysis find combination of variables to reduce correlation
+see if i can separate loss errors
+what will happen if model gets data with very high correlation
+'''
 

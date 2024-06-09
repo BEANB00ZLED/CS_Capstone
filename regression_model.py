@@ -7,7 +7,7 @@ from keras_preprocessing.text import Tokenizer
 from keras_preprocessing.sequence import pad_sequences
 import keras
 import keras_tuner as kt
-from util import TEXT_COLUMNS, TARGET_COLUMNS, save_model
+from util import TEXT_COLUMNS, TARGET_COLUMNS, save_model, get_model_info
 import os
 import tensorflow as tf
 
@@ -21,7 +21,6 @@ df.reset_index(drop=True, inplace=True)
 # Combine text data from all columns
 combined_text = df[TEXT_COLUMNS].apply(tuple, axis=1)
 combined_text = combined_text.str.join(', ').values
-print(combined_text[:5])
 
 # Fit tokenizer to the combined text
 tokenizer.fit_on_texts(combined_text)
@@ -62,7 +61,7 @@ for padded_sequence in padded_sequences_list:
     x_text_train_list.append(x_text_train)
     x_text_test_list.append(x_text_test)
 
-def main():
+def get_optimized_model() -> keras.Model:
     def build_model(hp):
         numerical_input = keras.layers.Input(shape=(len(num_col),), name='numerical_input')
 
@@ -105,17 +104,27 @@ def main():
         # Determine optimal optimizer
         optimizer = keras.optimizers.Adam(learning_rate=hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG'))
         # Compile the model
-        model.compile(optimizer=optimizer, loss={'output_delay': 'mean_squared_error', 'output_length': 'mean_squared_error'})
+        model.compile(
+            optimizer=optimizer, 
+            loss={
+                'output_delay': 'mean_squared_error',
+                'output_length': 'mean_squared_error'
+            },
+            metrics={
+                'output_delay': [keras.metrics.MeanSquaredError(name='mse_delay')],
+                'output_length': [keras.metrics.MeanSquaredError(name='mse_length')]
+            }
+        )
 
         return model
 
     tuner = kt.Hyperband(
         hypermodel=build_model,
         objective='val_loss',
-        max_epochs=40,
+        max_epochs=60,
         factor=3,
         directory='results_dir',
-        project_name='traffic_jam'
+        project_name='test_dir'
     )
     tuner.search(
         [x_numerical_train] + x_text_train_list,
@@ -124,19 +133,17 @@ def main():
         validation_split=0.2
     )
     model = tuner.get_best_models(num_models=1)[0]
-    '''model.fit(
-        [x_numerical_train] + x_text_train_list,
-        {'output_delay': y_train_delay, 'output_length': y_train_length},
-        epochs=30,
-        batch_size=32,
-        validation_split=0.2
-    )'''
+    return model
 
+
+def main():
+    model = keras.saving.load_model('regression_model.keras')
+    
     results = model.evaluate(
         [x_numerical_test] + x_text_test_list,
         {'output_delay': y_test_delay, 'output_length': y_test_length}
     )
-
+    
     #Computer r2 scores for delay and length separately
     y_true = [[i, j] for i, j in zip(y_test_delay.values, y_test_length.values)]
     y_pred = model.predict([x_numerical_test] + x_text_test_list)
