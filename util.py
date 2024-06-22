@@ -52,8 +52,12 @@ def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: fl
             lines = []
             lines.append(f'Model: {parent_file}\n')
             lines.append(f'Overall loss: {result[0]}\n')
-            lines.append(f'Delay MSE: {result[1]}\n')
-            lines.append(f'Length MSE: {result[2]}\n')
+            lines.append(f'Delay MSE: {result[2]}\n')
+            lines.append(f'Length MSE: {result[5]}\n')
+            lines.append(f'Delay RMSE: {result[3]}\n')
+            lines.append(f'Length RMSE: {result[6]}\n')
+            lines.append(f'Delay MAE: {result[1]}\n')
+            lines.append(f'Length MAE: {result[4]}\n')
             lines.append(f'Delay R^2: {r2_delay}\n')
             lines.append(f'Length R^2: {r2_length}\n')
             file.writelines(lines)
@@ -78,30 +82,32 @@ def save_model(model: keras.Model, result: float, r2_delay: float, r2_length: fl
             current_result_overall = float(current_contents[1].split(': ')[-1].strip())
             current_delay_mse = float(current_contents[2].split(': ')[-1].strip())
             current_length_mse = float(current_contents[3].split(': ')[-1].strip())
-            current_delay_r2 = float(current_contents[4].split(': ')[-1].strip())
-            current_length_r2 = float(current_contents[5].split(': ')[-1].strip())
-            # If the current file has worse metric then what was passed overwrite it
-            if (current_result_overall > result[0]) and (current_delay_mse > result[1]) and (current_length_mse > result[2]) and (current_delay_r2 < r2_delay) and (current_length_r2 < r2_length):
-                print('New model is better, saving...')
+            current_delay_rmse = float(current_contents[4].split(': ')[-1].strip())
+            current_length_rmse = float(current_contents[5].split(': ')[-1].strip())
+            current_delay_mae = float(current_contents[6].split(': ')[-1].strip())
+            current_length_mae = float(current_contents[7].split(': ')[-1].strip())
+            current_delay_r2 = float(current_contents[8].split(': ')[-1].strip())
+            current_length_r2 = float(current_contents[9].split(': ')[-1].strip())
+            # Show model comparisons and see ask to save
+            print('Current best vs. input model:')
+            print(f'Overall loss: {[current_result_overall, result[0]]}')
+            print(f'Delay MSE: {[current_delay_mse, result[2]]}')
+            print(f'Length MSE: {[current_length_mse, result[5]]}')
+            print(f'Delay RMSE: {[current_delay_rmse, result[3]]}')
+            print(f'Length RMSE: {[current_length_rmse, result[6]]}')
+            print(f'Delay MAE: {[current_delay_mse, result[1]]}')
+            print(f'Length MAE: {[current_length_mse, result[4]]}')
+            print(f'Delay R^2: {[current_delay_r2, r2_delay]}')
+            print(f'Length R^2: {[current_length_r2, r2_length]}')
+            save = input('Do you wish to save this model? (Y/N): ')
+            while save != 'Y' and save != 'N':
+                save = input('Please enter a valid answer (Y/N): ')
+            if save == 'Y':
                 create_txt_file(text_file)
                 model.save(model_file, overwrite=True)
                 print('Model is saved!')
-            elif (current_result_overall <= result[0]) and (current_delay_mse <= result[1]) and (current_length_mse <= result[2]) and (current_delay_r2 >= r2_delay) and (current_length_r2 >= r2_length):
-                print('New model is the same or worse, no changes made...')
             else:
-                print('Current best vs. input model:')
-                print(f'Overall loss: {[current_result_overall, result[0]]}')
-                print(f'Delay MSE: {[current_delay_mse, result[1]]}')
-                print(f'Length MSE: {[current_length_mse, result[2]]}')
-                print(f'Delay R^2: {[current_delay_r2, r2_delay]}')
-                print(f'Length R^2: {[current_length_r2, r2_length]}')
-                save = input('Do you wish to save this model? (Y/N): ')
-                if save == 'Y':
-                    create_txt_file(text_file)
-                    model.save(model_file, overwrite=True)
-                    print('Model is saved!')
-                else:
-                    print('Not saving model, exiting...')
+                print('Not saving model, exiting...')
     return None
 
 def get_model_info(model_file: str) -> None:
@@ -137,7 +143,7 @@ DESIRED_COLUMN_INFO = {
     'properties.speed': 'speed of jam traffic in m/s will convert to mph for consistency',
     'properties.street': 'DITCH, says which street/road name the jam is on, will extract if interstate number is even or odd',
     'properties.day_of_week': 'day of the week the jam occurs on, 0 - 6, 0 = monday',
-    'properties.weekday_weekend': 'if it is a weekend = True, weekday  = False',
+    'properties.weekday_weekend': 'DITCH if it is a weekend = True, weekday  = False',
     'X': 'longitude coordinate of crash in degrees',
     'Y': 'latitude coordinate of crash in degrees',
     'MaxInjuryS': 'injury severity, A_ - C_ =  most to least severe, U_  = Unkown / only property damage, handle blanks as unkown',
@@ -174,12 +180,17 @@ TARGET_COLUMNS = [
     'properties.length'
 ]
 
+DITCH_COLUMNS = [
+    'properties.weekday_weekend',
+    'NumberOfFa',
+    'day_sin',
+    'day_cos',
+    'year',
+    'interstate_is_odd',
+    'CityTownNa'
+]
 '''
-Include either the date or the weekday/weekend type information
-keep county keep city
-bad too have two different data columns that are correlated with eachother, pearson correlation
-princripal component analysis find combination of variables to reduce correlation
-see if i can separate loss errors
-what will happen if model gets data with very high correlation
+DITCH day, year, number of fatality, even_odd, weekday_weekend
+get rmse, and mae, map error/loss
 '''
 

@@ -11,11 +11,13 @@ from util import TEXT_COLUMNS, TARGET_COLUMNS, save_model, get_model_info
 import os
 import tensorflow as tf
 
+FILE = 'encoded_model_data.csv'
+DIR = 'test_dir'
 
 # Tokenize and pad all text columns together
-max_length = 30
+max_length = 50
 tokenizer = Tokenizer(oov_token='<UNK>')
-df = pd.read_csv('encoded_model_data.csv')
+df = pd.read_csv(FILE)
 df.reset_index(drop=True, inplace=True)
 
 # Combine text data from all columns
@@ -101,8 +103,9 @@ def get_optimized_model() -> keras.Model:
         # Define the model
         model = keras.models.Model(inputs=[numerical_input] + embedded_inputs, outputs=[output_delay, output_length])
 
-        # Determine optimal optimizer
+        # Determine optimal optimizer setup
         optimizer = keras.optimizers.Adam(learning_rate=hp.Float('learning_rate', min_value=1e-4, max_value=1e-2, sampling='LOG'))
+        
         # Compile the model
         model.compile(
             optimizer=optimizer, 
@@ -111,12 +114,23 @@ def get_optimized_model() -> keras.Model:
                 'output_length': 'mean_squared_error'
             },
             metrics={
-                'output_delay': [keras.metrics.MeanSquaredError(name='mse_delay')],
-                'output_length': [keras.metrics.MeanSquaredError(name='mse_length')]
+                'output_delay':[
+                    keras.metrics.MeanSquaredError(name='mse_delay'), 
+                    keras.metrics.RootMeanSquaredError(name='rmse_delay'),
+                    keras.metrics.MeanAbsoluteError(name='mae_delay'),
+                ],
+                'output_length':[
+                    keras.metrics.MeanSquaredError(name='mse_length'),
+                    keras.metrics.RootMeanSquaredError(name='rmse_length'),
+                    keras.metrics.MeanAbsoluteError(name='mae_length')
+                ]
             }
         )
 
         return model
+    
+def get_optimized_model_v2() -> keras.Model:
+    
 
     tuner = kt.Hyperband(
         hypermodel=build_model,
@@ -124,7 +138,7 @@ def get_optimized_model() -> keras.Model:
         max_epochs=60,
         factor=3,
         directory='results_dir',
-        project_name='test_dir'
+        project_name=DIR
     )
     tuner.search(
         [x_numerical_train] + x_text_train_list,
@@ -137,7 +151,7 @@ def get_optimized_model() -> keras.Model:
 
 
 def main():
-    model = keras.saving.load_model('regression_model.keras')
+    model = get_optimized_model()
     
     results = model.evaluate(
         [x_numerical_test] + x_text_test_list,

@@ -1,7 +1,7 @@
 import pandas as pd
 import json
 import os, sys
-from util import first_value_loc, DESIRED_COLUMN_INFO, cyclic_encode, one_hot_encode, TARGET_COLUMNS, TEXT_COLUMNS
+from util import first_value_loc, DESIRED_COLUMN_INFO, cyclic_encode, one_hot_encode, TARGET_COLUMNS, TEXT_COLUMNS, DITCH_COLUMNS
 import datetime as dt
 import ast
 from enum import Enum
@@ -544,8 +544,8 @@ def main():
     #combine_all_crashes('NYS_Crash_CSVs')
     #validate_data('waze_jams_interstates.csv', 'interstate_crashes.csv', primary_filter.THRESH)
     #preprocess_validated_data('basic_thresh_validated_interstates.csv')
-    bad_cols = see_correlation(drop_thresh=1)
-    df = pd.read_csv('encoded_model_data.csv').drop(columns=bad_cols)
-    df.to_csv('correlation_free.csv')
+    df = pd.read_csv('encoded_model_data.csv')
+    df.drop(columns=DITCH_COLUMNS + ['Unnamed: 0'], inplace=True)
+    df.to_csv('cherry_picked_data.csv')
 if __name__ == '__main__':
     main()
