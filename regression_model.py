@@ -10,12 +10,14 @@ import keras_tuner as kt
 from util import TEXT_COLUMNS, TARGET_COLUMNS, save_model, get_model_info
 import os
 import tensorflow as tf
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 FILE = 'encoded_model_data.csv'
 DIR = 'test_dir'
 
 # Tokenize and pad all text columns together
-max_length = 50
+max_length = 30
 tokenizer = Tokenizer(oov_token='<UNK>')
 df = pd.read_csv(FILE)
 df.reset_index(drop=True, inplace=True)
@@ -129,7 +131,7 @@ def get_optimized_model() -> keras.Model:
 
         return model
     
-def get_optimized_model_v2() -> keras.Model:
+'''def get_optimized_model_v2() -> keras.Model:
     
 
     tuner = kt.Hyperband(
@@ -147,11 +149,11 @@ def get_optimized_model_v2() -> keras.Model:
         validation_split=0.2
     )
     model = tuner.get_best_models(num_models=1)[0]
-    return model
+    return model'''
 
 
 def main():
-    model = get_optimized_model()
+    model = keras.models.load_model('regression_model.keras')
     
     results = model.evaluate(
         [x_numerical_test] + x_text_test_list,
@@ -164,9 +166,49 @@ def main():
     r2_delay = r2_score(y_test_delay, y_pred[0])
     r2_length = r2_score(y_test_length, y_pred[1])
     
+    #Graphing pred vs true
+    delay_graph = sns.scatterplot(
+        x=y_test_delay,
+        y=y_pred[0].flatten(),
+        color='red',
+        marker='o'
+    )
+    theor = np.linspace(0, 10)
+    plt.plot(theor, theor, linestyle='-', color='black')
+    plt.grid(True)
+    plt.xlim(0, 10)
+    plt.ylim(0, 10)
+    delay_graph.set(
+        title='Actual Versus Predicted Delay',
+        ylabel='Predicted Delay [minutes]',
+        xlabel='Actual Delay [minutes]'
+    )
+    plt.show()
+
+    plt.close()
+
+    #Graphing pred vs true
+    length_graph = sns.scatterplot(
+        x=y_test_length,
+        y=y_pred[1].flatten(),
+        color='red',
+        marker='o'
+    )
+    theor = np.linspace(0, 11)
+    plt.plot(theor, theor, linestyle='-', color='black')
+    plt.grid(True)
+    plt.xlim(0, 11)
+    plt.ylim(0, 11)
+    length_graph.set(
+        title='Actual Versus Predicted Length',
+        ylabel='Predicted Length [miles]',
+        xlabel='Actual Length [miles]'
+    )
+    plt.show()
+
 
     print(f'Test Loss: {results}\nR^2 values are\nDelay: {r2_delay}\nLength: {r2_length}')
-    save_model(model, results, r2_delay, r2_length)
+    #save_model(model, results, r2_delay, r2_length)
 
 if __name__ == '__main__':
     main()
