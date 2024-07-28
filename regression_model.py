@@ -2,7 +2,7 @@ import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, mean_absolute_percentage_error
 from keras_preprocessing.text import Tokenizer
 from keras_preprocessing.sequence import pad_sequences
 import keras
@@ -165,7 +165,19 @@ def main():
     y_pred = model.predict([x_numerical_test] + x_text_test_list)
     r2_delay = r2_score(y_test_delay, y_pred[0])
     r2_length = r2_score(y_test_length, y_pred[1])
-    
+
+    mape_delay = mean_absolute_percentage_error(y_test_delay, y_pred[0])
+    mape_length = mean_absolute_percentage_error(y_test_length, y_pred[1])
+
+    # Quick and dirty metrics for the paper
+    print(f'MAPE FOR MODEL\nDelay: {mape_delay}\nLength: {mape_length}')
+    delay_under = y_pred[0].flatten() < y_test_delay
+    delay_under = round(np.mean(delay_under) * 100, 2)
+    print(f'DELAY predicts less than actual {delay_under}% of the time and over the actual {100 - delay_under}% of the time')
+    length_under = y_pred[1].flatten() < y_test_length
+    length_under = round(np.mean(length_under) * 100, 2)
+    print(f'LENGTH predicts less than actual {length_under}% of the time and over the acual {100 - length_under}% of the time')
+
     #Graphing pred vs true
     delay_graph = sns.scatterplot(
         x=y_test_delay,

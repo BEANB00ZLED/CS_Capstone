@@ -19,14 +19,34 @@ def first_value_loc(list_of_lists: list, index: int):
 
 def create_distribution_graphs():
     df = pd.read_csv('basic_thresh_validated_interstates.csv')
-    # Get the interstate of the matches and counts
+    df_whole_waze = pd.read_csv('waze_jams_interstates.csv')
+    # Interstate distribution
     interstate_counts = df['properties.street'].apply(lambda x: x[0:-2]).value_counts()
     interstate_counts = interstate_counts.divide(interstate_counts.sum()).multiply(100).round(decimals=1)
+    whole_interstate_counts = df_whole_waze['properties.street'].apply(lambda x: x[0:-2]).value_counts()
+    whole_interstate_counts = whole_interstate_counts.divide(whole_interstate_counts.sum()).multiply(100).round(decimals=1)
 
+    interstate_counts = pd.DataFrame({
+        'interstate':interstate_counts.index,
+        'percentage':interstate_counts.values,
+        'Data Type': 'Validated Data'
+    })
+
+    whole_interstate_counts = pd.DataFrame({
+        'interstate':whole_interstate_counts.index,
+        'percentage':whole_interstate_counts.values,
+        'Data Type':'Raw Data'
+    })
+    whole_interstate_counts = whole_interstate_counts[whole_interstate_counts['percentage'] != 0]
+    interstate_counts = pd.concat([interstate_counts, whole_interstate_counts], ignore_index=True)
+    
     interstate_dist = sns.barplot(
-        x=interstate_counts.index,
-        y=interstate_counts.values
+        data=interstate_counts,
+        x='interstate',
+        y='percentage',
+        hue='Data Type'
     )
+
     interstate_dist.grid(visible=True, axis='y')
     interstate_dist.set_xlabel(xlabel='Interstate', fontsize=13)
     interstate_dist.set_ylabel(ylabel='Percentage of Total Data', fontsize=13)
@@ -35,11 +55,35 @@ def create_distribution_graphs():
     plt.show()
     plt.close()
     
+    df_whole_crash = pd.read_csv('interstate_crashes.csv')
+    # Weather distribution
     weather_counts = df['WeatherCon'].str.replace('\r\n', '').value_counts().drop(index='UNKNOWN')
     weather_counts = weather_counts.divide(weather_counts.sum()).multiply(100).round(decimals=1)
+
+    whole_weather_counts = df_whole_crash['WeatherCon'].str.replace('\r\n', '').value_counts().drop(index='UNKNOWN')
+    whole_weather_counts = whole_weather_counts.divide(whole_weather_counts.sum()).multiply(100).round(decimals=1)
+    
+
+    weather_counts = pd.DataFrame({
+        'weather':weather_counts.index,
+        'percentage':weather_counts.values,
+        'Data Type': 'Validated Data'
+    })
+
+    whole_weather_counts = pd.DataFrame({
+        'weather':whole_weather_counts.index,
+        'percentage':whole_weather_counts.values,
+        'Data Type':'Raw Data'
+    })
+
+    whole_weather_counts = whole_weather_counts[whole_weather_counts['percentage'] > 0.3]
+    weather_counts = pd.concat([weather_counts, whole_weather_counts], ignore_index=True)
+
     weather_dist = sns.barplot(
-        x=weather_counts.index,
-        y=weather_counts.values
+        data=weather_counts,
+        x='weather',
+        y='percentage',
+        hue='Data Type'
     )
     weather_dist.grid(visible=True, axis='y')
     weather_dist.set_xlabel(xlabel='Weather', fontsize=13)
@@ -47,6 +91,41 @@ def create_distribution_graphs():
     weather_dist.set_title(label='Weather Distribution of Validated Data', fontsize=15)
 
     plt.show()
+    plt.close()
+
+    # Time distribution
+    hour_counts = pd.to_datetime(df['CrashTimeF']).dt.hour.value_counts().sort_index()
+    hour_counts = hour_counts.divide(hour_counts.sum()).multiply(100).round(decimals=1)
+
+    whole_hour_counts = pd.to_datetime(df_whole_crash['CrashTimeF']).dt.hour.value_counts().sort_index()
+    whole_hour_counts = whole_hour_counts.divide(whole_hour_counts.sum()).multiply(100).round(decimals=1)
+
+    hour_counts = pd.DataFrame({
+        'hour':hour_counts.index,
+        'percentage':hour_counts.values,
+        'Data Type': 'Validated Data'
+    })
+
+    whole_hour_counts = pd.DataFrame({
+        'hour':whole_hour_counts.index,
+        'percentage':whole_hour_counts.values,
+        'Data Type': 'Raw Data'
+    })
+    hour_counts = pd.concat([hour_counts, whole_hour_counts], ignore_index=True)
+
+    hour_dist = sns.barplot(
+        data=hour_counts,
+        x='hour',
+        y='percentage',
+        hue='Data Type'
+    )
+    hour_dist.grid(visible=True, axis='y')
+    hour_dist.set_xlabel(xlabel='Time of Day [24 hour time]', fontsize=13)
+    hour_dist.set_ylabel(ylabel='Percentage of Total Data', fontsize=13)
+    hour_dist.set_title(label='Time of Day Distribution of Validated Data', fontsize=15)
+
+    plt.show()
+    plt.close()
 
     
 
@@ -54,7 +133,7 @@ JAM_FILE = 'waze_jams_interstates.csv'
 
 def create_alerts_map():
     df = pd.read_csv(JAM_FILE)
-    #Convert the data from strings to lists of floats
+    # Convert the data from strings to lists of floats
     df['geometry.coordinates'] = df['geometry.coordinates'].apply(ast.literal_eval)
     df['x.coordinates'] = df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 1))
     df['y.coordinates'] = df['geometry.coordinates'].apply(lambda x: first_value_loc(x, 0))

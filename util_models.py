@@ -1,21 +1,52 @@
 import pandas as pd
 import numpy as np
+from math import sqrt
 from sklearn.dummy import DummyRegressor
-from keras_preprocessing.sequence import pad_sequences
-import keras
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score, mean_absolute_percentage_error
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.neighbors import KNeighborsRegressor
 from util import TEXT_COLUMNS, TARGET_COLUMNS
 from regression_model import x_numerical_test, x_numerical_train, y_train_delay, y_train_length, y_test_delay, y_test_length
 from sklearn.decomposition import PCA
+import xgboost as xgb
 
-def test_dummy_regressor() -> None:
-    strat = 'mean'
-    dummy_regr_delay = DummyRegressor(strategy=strat)
-    dummy_regr_length = DummyRegressor(strategy=strat)
-    dummy_regr_delay.fit(x_numerical_train, y_train_delay.values)
-    dummy_regr_length.fit(x_numerical_train, y_train_length.values)
-    result_delay = dummy_regr_delay.score(x_numerical_test, y_test_delay.values)
-    result_length = dummy_regr_length.score(x_numerical_test, y_test_length.values)
-    print(f'R^2 value for dummy regressor using {strat} strategy is\nDelay: {result_delay}\nLength: {result_length}')
+def test_other_models() -> None:
+    models = {
+        'Dummy Regressor': DummyRegressor(strategy='mean'),
+        'Random Forest': RandomForestRegressor(),
+        'Linear Regression': LinearRegression(), 
+        'K-Nearest Neighbors': KNeighborsRegressor(),
+        'XGBOOST': xgb.XGBRegressor()
+    }
+    for name, model in models.items():
+        # Fit model
+        delay = model.fit(x_numerical_train, y_train_delay.values)
+        length = model.fit(x_numerical_train, y_train_length.values)
+        # Get pred values
+        delay_pred = delay.predict(x_numerical_test)
+        length_pred = length.predict(x_numerical_test)
+        # Get r2 values
+        delay_r2 = r2_score(y_test_delay.values, delay_pred)
+        length_r2 = r2_score(y_test_length.values, length_pred)
+        # Get MSE and RMSE
+        delay_mse = mean_squared_error(y_test_delay, delay_pred)
+        delay_rmse = sqrt(delay_mse)
+        length_mse = mean_squared_error(y_test_length, length_pred)
+        length_rmse = sqrt(length_mse)
+        # Get MAE
+        delay_mae = mean_absolute_error(y_test_delay, delay_pred)
+        length_mae = mean_absolute_error(y_test_length, length_pred)
+        # Get MAPE
+        delay_mape = mean_absolute_percentage_error(y_test_delay, delay_pred)
+        length_mape = mean_absolute_percentage_error(y_test_length, length_pred)
+        # Display results
+        print(f'*****{name}*****')
+        print(f'Delay MSE: {delay_mse}\nLength MSE: {length_mse}')
+        print(f'Delay RMSE: {delay_rmse}\nLength RMSE: {length_rmse}')
+        print(f'Delay MAE: {delay_mae}\nLength MAE: {length_mae}')
+        print(f'Delay MAPE: {delay_mape}\nLength MAPE: {length_mape}')
+        print('-' * 30)
 
 def principal_component_analysis() -> None:
     '''
@@ -29,7 +60,7 @@ def principal_component_analysis() -> None:
     return None
 
 def main():
-    principal_component_analysis()
+    test_other_models()
 
 if __name__ == '__main__':
     main()
